@@ -1,6 +1,6 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Part of Fenestra Menu 11 (naykkalak, 2026), a fork of Menu 11 Next by Eisteed,
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Part of Miryu Start (naykkalak, 2026), a fork of Menu 11 Next by Eisteed,
  * itself based on Menu 11 / Ditto Menu by adhe (GPL-2.0-or-later).
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -33,6 +33,13 @@ RowLayout{
     Logic { id: monLogic }
 
     spacing: Kirigami.Units.largeSpacing
+
+    // Fenestra : écran utile (zone hors barres / panneaux), fourni par
+    // MenuRepresentation.qml. Sert à borner la fenêtre « Compte » pour qu'elle ne
+    // sorte jamais de l'écran. On ne lit PAS « plasmoid.availableScreenRect » ici :
+    // cette propriété ne s'y résout pas -> le bornage était inopérant et la fenêtre
+    // Compte se retrouvait coupée sur son bord gauche (cf. 图一).
+    property rect ecranUtile: Qt.rect(0, 0, 0, 0)
 
     signal tabOut
 
@@ -236,18 +243,54 @@ RowLayout{
                 }
             }
 
+            // Fenestra : repositionnement, TOUJOURS borné à l'écran utile, pour que la
+            // fenêtre Compte reste entièrement visible même en basse résolution
+            // (ex. 1200x800). Horizontalement, elle est centrée sur le bouton puis
+            // ramenée dans l'écran (sinon, bouton près du bord gauche, la partie gauche
+            // - l'avatar - passait hors écran, cf. 图三). Verticalement, elle s'ouvre
+            // vers le HAUT (le bouton est en bas) ; s'il n'y a pas la place au-dessus,
+            // elle bascule vers le BAS au lieu d'être coupée par le haut de l'écran.
             function reposition() {
-                // Centré horizontalement sur le bouton, ouvert vers le HAUT :
-                // le bouton Compte est dans la même barre du bas que le
-                // bouton Alimentation, tout en bas de l'écran, donc il n'y a
-                // de place que vers le haut (comme pour le menu Alimentation).
-                var pos = accountButton.mapToGlobal(accountButton.width / 2, 0);
-                x = Math.round(pos.x - width / 2);
-                y = Math.round(pos.y - height - Kirigami.Units.smallSpacing);
+                var marge = Kirigami.Units.smallSpacing;
+                var ecranX = ecranUtile.x;
+                var ecranY = ecranUtile.y;
+                var ecranW = ecranUtile.width;
+                var ecranH = ecranUtile.height;
+
+                var centreX = accountButton.mapToGlobal(accountButton.width / 2, 0).x;
+                var nx = centreX - width / 2;
+                if (isFinite(ecranW) && ecranW > 0)
+                    nx = Math.max(ecranX + marge, Math.min(nx, ecranX + ecranW - width - marge));
+                x = Math.round(nx);
+
+                var hautBouton = accountButton.mapToGlobal(0, 0).y;
+                var basBouton = accountButton.mapToGlobal(0, accountButton.height).y;
+                var ny = hautBouton - height - marge;
+                if (isFinite(ecranY) && isFinite(ecranH) && ecranH > 0) {
+                    if (ny < ecranY + marge && (basBouton + marge + height) <= (ecranY + ecranH))
+                        ny = basBouton + marge;   // pas de place au-dessus -> vers le bas
+                    ny = Math.max(ecranY + marge, Math.min(ny, ecranY + ecranH - height - marge));
+                }
+                y = Math.round(ny);
+            }
+
+            // Fenestra : la taille de la fenêtre change après l'affichage (le dialogue se
+            // dimensionne d'après le mainItem) -> on reborne la position pour rester
+            // dans l'écran. Ne touche QUE x/y, donc aucune boucle de liaison.
+            onWidthChanged: { if (visible) Qt.callLater(reposition); }
+            onHeightChanged: { if (visible) Qt.callLater(reposition); }
+
+            // Fenestra : largeur du menu Compte, bornée par l'écran utile pour ne
+            // jamais déborder/tronquer en basse résolution.
+            readonly property int largeurMenu: {
+                var base = 340;
+                var dispo = ecranUtile.width - Kirigami.Units.gridUnit * 2;
+                if (!isFinite(dispo) || dispo <= 0) return base;
+                return Math.max(Kirigami.Units.gridUnit * 8, Math.min(base, dispo));
             }
 
             mainItem: ColumnLayout {
-                width: 340
+                width: accountMenu.largeurMenu
                 spacing: Kirigami.Units.largeSpacing
 
                 // ── Ligne du haut : logo distro à gauche, "Se déconnecter" à droite
@@ -259,20 +302,11 @@ RowLayout{
 
                     Image {
                         id: distroLogo
-                        property bool primaryFailed: false
-                        readonly property string basePath: "file:///home/utilisateur/.local/share/icons/distributions/"
-                        // Rien à charger tant que la vraie détection (distroCheck)
-                        // n'a pas abouti. Repli sur le logo KDE si le logo de la
-                        // distribution est absent (on ne touche jamais "source"
-                        // directement, juste ce drapeau).
-                        source: distroCheck.distroId === "" ? ""
-                            : (primaryFailed ? (basePath + "kde.svg") : (basePath + distroCheck.distroId + ".svg"))
-                        visible: false   // Fenestra : logo de distribution masqué
-                        onStatusChanged: {
-                            if (status === Image.Error && !primaryFailed) {
-                                primaryFailed = true;
-                            }
-                        }
+                        // Fenestra : logo de distribution masqué ; on ne charge plus le
+                        // chemin codé en dur (« /home/utilisateur/… ») qui échouait à
+                        // chaque ouverture (Cannot open + boucle sur « source »).
+                        source: ""
+                        visible: false
                         fillMode: Image.PreserveAspectFit
                         Layout.preferredHeight: 20
                         Layout.alignment: Qt.AlignVCenter
@@ -554,7 +588,8 @@ RowLayout{
 
                         Text {
                             text: i18n("Local account")
-                            color: Kirigami.Theme.disabledTextColor
+                            // Fenestra : texte noir (comme le nom), et non grisé
+                            color: Kirigami.Theme.textColor
                             font.family: Kirigami.Theme.defaultFont.family
                             font.pointSize: Kirigami.Theme.defaultFont.pointSize || 10
                         }
@@ -574,7 +609,9 @@ RowLayout{
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     accountMenu.visible = false;
-                                    runner.run("kcmshell6 kcm_users");
+                                    // Fenestra : ouvre le module « Utilisateurs » des
+                                    // Paramètres système (et non une fenêtre KCM isolée)
+                                    runner.run("systemsettings kcm_users");
                                 }
                             }
                         }

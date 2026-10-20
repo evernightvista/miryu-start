@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /***************************************************************************
  *   Copyright (C) 2014 by Weng Xuetian <wengxt@gmail.com>
@@ -46,63 +46,145 @@ PlasmaCore.Dialog {
 
     objectName: "popupWindow"
     flags: Qt.WindowStaysOnTopHint
-    location: {
-        if (Plasmoid.configuration.displayPosition === 1)
-            return PlasmaCore.Types.Floating;
-        else if (Plasmoid.configuration.displayPosition === 2)
-            return PlasmaCore.Types.BottomEdge;
-        else
-            return Plasmoid.location;
-    }
+    // Fenestra : le menu suit toujours l'emplacement du bouton dans la barre
+    location: Plasmoid.location
+    // Fenestra : floating = 0 demande à PlasmaQuick de supprimer la bordure du
+    // côté du panneau (bord du bas pour une barre en bas), comme
+    // removeBorderStrategy: AtPanelEdges dans PopupPlasmaWindow. Le menu est
+    // donc collé à la barre des tâches sans marge de cadre visible.
+    floating: 0
     hideOnWindowDeactivate: true
 
-    // Ensure minimum dimensions to prevent empty dialog error
-    // Fenestra : largeur de la fenêtre donnée à l'ouverture (voir onVisibleChanged)
-    height: Math.max(rootItem.height, 200)
+    // Fenestra : référence EXPLICITE au bouton Démarrer dans la barre. On
+    // ne utilise PAS « parent » : PlasmaCore.Dialog (QQuickWindow) n'a pas
+    // la même chaîne de parenté QML qu'un QQuickItem, donc « parent.width »
+    // pouvait être incorrect ou null → le menu retombait en alignement à gauche.
+    // Cette référence est posée par CompactRepresentation au moment de la création.
+    //   height: hauteurContenu (avec plancher 200 px), donc la fenêtre est toujours
+    //   correctement dimensionnée.
+    // NE PAS écrire « height: rootItem.height + ... » à la racine : ça crée une boucle
+    // (Dialog.height dépend de mainItem.height, que PlasmaQuick recalcule depuis
+    // Dialog.height) → « trying to show an empty dialog » et gel du menu / volet.
 
-    // Fenestra : colonnes automatiques : 6 sous 1900 px, 7 pour un écran 1920, 8 à partir de 2500 px
-    // (largeur de l'écran en pixels logiques, mise à l'échelle comprise)
+    // Fenestra : largeur d'une colonne de tuiles, calquée sur le menu Démarrer de
+    // Windows 11 (~95 px). Elle est volontairement PLAFONNÉE : « cellSizeWidth » dérive
+    // des marges du thème « widgets/viewitem », qui peuvent être énormes selon le thème
+    // installé. Sans plafond, la largeur du menu valait « cellSizeWidth × 6 », soit ici
+    // ~1000 px : le menu occupait toute la largeur de l'écran (trop grand, écrasé/en
+    // « large et bas »). En bornant la colonne, le menu garde les proportions du vrai
+    // Windows 11 quelle que soit la décoration.
+    readonly property int largeurColonne: {
+        var cible = Math.round(Kirigami.Units.gridUnit * 5.5 * root.echelleMenu);
+        var plancher = Math.round(Kirigami.Units.gridUnit * 4 * root.echelleMenu);
+        return Math.max(plancher, Math.min(root.cellSizeWidth, cible));
+    }
+
+    // Fenestra : 6 colonnes au maximum, comme le menu Démarrer de Windows 11, et jamais plus
+    // que ce qui tient réellement à l'écran. Le menu reste ainsi étroit (et donc centrable),
+    // aucune colonne n'est rognée, et il n'est plus « écrasé » en largeur.
     readonly property int colonnesAuto: {
-        var w = kicker.screenGeometry.width;
-        if (w >= 2500) return 8;
-        if (w >= 1900) return 7;
-        return 6;
+        var tiennent = Math.floor((kicker.screenGeometry.width - Kirigami.Units.gridUnit * 4) / largeurColonne);
+        return Math.max(3, Math.min(6, tiennent));
     }
 
     property int iconSize: {
+        var base;
         switch (Plasmoid.configuration.appsIconSize) {
         case 0:
-            return Kirigami.Units.iconSizes.smallMedium;
+            base = Kirigami.Units.iconSizes.smallMedium; break;
         case 1:
-            return Kirigami.Units.iconSizes.medium;
+            base = Kirigami.Units.iconSizes.medium; break;
         case 2:
-            return Kirigami.Units.iconSizes.large;
+            base = Kirigami.Units.iconSizes.large; break;
         case 3:
-            return Kirigami.Units.iconSizes.huge;
+            base = Kirigami.Units.iconSizes.huge; break;
         default:
-            return 64;
+            base = 64;
         }
+        return Math.max(16, Math.round(base * root.echelleMenu));
     }
 
     property int docsIconSize: {
+        var base;
         switch (Plasmoid.configuration.docsIconSize) {
         case 0:
-            return Kirigami.Units.iconSizes.smallMedium;
+            base = Kirigami.Units.iconSizes.smallMedium; break;
         case 1:
-            return Kirigami.Units.iconSizes.medium;
+            base = Kirigami.Units.iconSizes.medium; break;
         case 2:
-            return Kirigami.Units.iconSizes.large;
+            base = Kirigami.Units.iconSizes.large; break;
         case 3:
-            return Kirigami.Units.iconSizes.huge;
+            base = Kirigami.Units.iconSizes.huge; break;
         default:
-            return Kirigami.Units.iconSizes.medium;
+            base = Kirigami.Units.iconSizes.medium;
         }
+        return Math.max(16, Math.round(base * root.echelleMenu));
     }
 
-    property int cellSizeHeight: iconSize + Kirigami.Units.gridUnit * 2 + (2 * Math.max(highlightItemSvg.margins.top + highlightItemSvg.margins.bottom, highlightItemSvg.margins.left + highlightItemSvg.margins.right))
+    // Fenestra : marge intérieure d'une tuile, BORNÉE. Le thème « widgets/viewitem »
+    // peut définir des marges de surlignage très grandes (~19 px) ; la cellule valait
+    // alors « iconSize + 2×grille + 2×(marges) » ≈ 145 px, ce qui gonflait toutes les
+    // tuiles (et donc le menu). On les borne à ~¾ de gridUnit. Si le thème a des marges
+    // plus petites (Breeze), c'est la valeur du thème qui est gardée : rien ne change.
+    readonly property int tuilePad: Math.min(highlightItemSvg.margins.top, Math.round(Kirigami.Units.gridUnit * 0.75 * root.echelleMenu))
+
+    // Fenestra : hauteur d'UNE ligne de libellé, mesurée sur la police réelle du thème.
+    // FontMetrics est déclaré en PROPRIÉTÉ, pas en enfant du dialogue : la propriété par
+    // défaut de PlasmaCore.Dialog n'accepte que des « QQuickItem », un enfant non-Item
+    // faisait échouer le chargement de tout MenuRepresentation
+    // (« Cannot assign object of type "FontMetrics" to property of type "QQuickItem*" »,
+    // puis « Type MenuRepresentation unavailable » et menu qui ne s'ouvre plus).
+    readonly property QtObject labelFontMetrics: FontMetrics {
+        font {
+            family: Kirigami.Theme.defaultFont.family
+            pointSize: Kirigami.Theme.defaultFont.pointSize * root.echelleMenu
+            weight: Kirigami.Theme.defaultFont.weight
+        }
+    }
+    readonly property int labelLineHeight: Math.max(1, Math.ceil(labelFontMetrics.lineSpacing))
+
+    // Fenestra : hauteur d'une tuile. Elle doit contenir l'icône ET le nom (1 ou 2 lignes
+    // selon la configuration) : c'est ce qui garantit que le libellé ne dépasse plus jamais
+    // le surlignement (bordure de la cellule). Avant, on réservait la place d'UNE seule
+    // ligne : le nom sur 2 lignes (« Dolphin 文件管理器 ») sortait par le bas de la tuile.
+    // marge haute + icône + écart icône/nom + nom + marge basse.
+    property int cellSizeHeight: 2 * tuilePad + iconSize + Math.round(Kirigami.Units.smallSpacing * root.echelleMenu)
+                                 + (Plasmoid.configuration.labels2lines ? 2 : 1) * labelLineHeight
     property int cellSizeWidth: cellSizeHeight + Kirigami.Units.gridUnit
 
+    // Fenestra : écran utile de l'applet (zone hors barres / panneaux), exposé au pied
+    // (Footer) pour que la fenêtre « Compte » reste TOUJOURS entièrement visible.
+    // Source : « kicker.availableScreenRect » / « kicker.screenGeometry », exactement
+    // comme popupPosition() ci-dessous. « plasmoid.* » ne s'y résout pas, ce qui rendait
+    // le bornage inopérant : x valait « centre du bouton − largeur/2 » et la fenêtre
+    // Compte sortait par le bord gauche de l'écran (tronquée, cf. 图一).
+    readonly property rect ecranUtile: {
+        var g = kicker.screenGeometry;
+        var a = kicker.availableScreenRect;
+        if (!g && !a) return Qt.rect(0, 0, 0, 0);
+        var gx = g ? g.x : 0, gy = g ? g.y : 0;
+        var gw = g ? g.width : 0, gh = g ? g.height : 0;
+        var ax = a ? a.x : 0, ay = a ? a.y : 0;
+        var aw = a ? a.width : 0, ah = a ? a.height : 0;
+        return Qt.rect(gx + ax, gy + ay, aw > 0 ? aw : gw, ah > 0 ? ah : gh);
+    }
+
     property bool searching: (searchField.text != "")
+
+    // Fenestra : facteur d'échelle global du menu en basse résolution.
+    // En dessous d'une taille de référence (1600×900), tout le contenu (icônes,
+    // tuiles, colonnes, espacements) est réduit PROPORTIONNELLEMENT, comme avant
+    // les modifications de mise en page. Le menu reste ainsi entier et lisible
+    // sur les petits écrans plutôt que d'être rogné ou éparpillé en peu de colonnes.
+    readonly property real echelleMenu: {
+        var ecranW = kicker.screenGeometry.width;
+        var ecranH = kicker.availableScreenRect.height;
+        var refW = 1600;
+        var refH = 900;
+        var facteurW = (ecranW > 0) ? Math.min(1.0, ecranW / refW) : 1.0;
+        var facteurH = (ecranH > 0) ? Math.min(1.0, ecranH / refH) : 1.0;
+        return Math.max(0.65, Math.min(facteurW, facteurH));
+    }
 
     onSearchingChanged: {
         if (searching) {
@@ -114,8 +196,36 @@ PlasmaCore.Dialog {
     }
     onVisibleChanged: {
         if (visible) {
-            width = Math.round(rootItem.width + margins.left + margins.right);   // Fenestra : largeur de la fenêtre donnée à l'ouverture
-            voletPrevu = Plasmoid.configuration.kdeConnectMemoriser && Plasmoid.configuration.kdeConnectPanelOn;   // Fenestra : groupe menu + volet centré ; Fenestra : option du volet
+            // Fenestra : largeur de la fenêtre donnée à l'ouverture — PlasmaCore.Dialog
+            // inclut les marges du cadre dans « width » (PlasmaQuick::Dialog). On fixe
+            // explicitement Dialog.width = largeur du contenu + marges du cadre pour
+            // garantir que les coordonnées globales des Items sont correctes dès le
+            // premier affichage. Sans ça, le ToolTip de PlasmaComponents3 se positionne
+            // sur une géométrie de fenêtre erronée (marges = 0 avant chargement asynchrone
+            // du FrameSvg du thème) et apparaît décalé. C'est une AFFECTATION UNIQUE,
+            // pas une liaison : aucun risque de boucle.
+            // Normalisation à 0 si margins.left/right sont undefined (évite width = NaN).
+            var ml = isFinite(margins.left) ? margins.left : 0;
+            var mr = isFinite(margins.right) ? margins.right : 0;
+            // On utilise largeurVoulue (la largeur de contenu voulue, fixe) et NON
+            // rootItem.width : PlasmaQuick::Dialog recalcule mainItem.width depuis
+            // Dialog.width, donc rootItem.width peut être temporairement erroné et
+            // créer une boucle / une largeur instable. La largeur de la fenêtre doit
+            // dépendre de la largeur de contenu voulue, pas l'inverse.
+            width = Math.round(rootItem.largeurVoulue + ml + mr);
+            // Fenestra : re-correction de la largeur après chargement des marges du
+            // cadre (une seule fois). Stabilise la géométrie pour les ToolTip.
+            ajustementLargeur.restart();
+            // Fenestra : si le volet est prévu (option "mémoriser"), on l'ouvre
+            // SYNCHRONEMENT AVANT de calculer la position du menu. Comme ça panel.width
+            // est correct (pas zéro), popupPosition(totalW = menu + volet) donne la
+            // bonne position dès le premier glissement — le menu et le volet
+            // apparaissent EN MÊME TEMPS, animations synchronisées.
+            voletPrevu = Plasmoid.configuration.kdeConnectMemoriser && Plasmoid.configuration.kdeConnectPanelOn;
+            if (voletPrevu && !kdeConnectPanel.visible) {
+                Plasmoid.configuration.kdeConnectPanelOn = true;
+                kdeConnectPanel.open();
+            }
             var pos = popupPosition(width, height);
             x = pos.x;
             y = pos.y;
@@ -123,6 +233,10 @@ PlasmaCore.Dialog {
             // Fenestra : chargements après l'affichage (le menu se dessine d'abord)
             chargementsOuverture.restart();
         } else {
+            // Fenestra : fermeture du menu — on réinitialise voletPrevu. Sinon
+            // la valeur de l'ouverture précédente reste en mémoire et pollue
+            // la position du menu à l'ouverture suivante.
+            voletPrevu = false;
             view.currentIndex = 0;
         }
     }
@@ -143,20 +257,42 @@ PlasmaCore.Dialog {
         }
     }
 
+    // Fenestra : PlasmaCore.Dialog.margins est une propriété CONSTANT (pas de signal
+    // marginsChanged). Au premier affichage, les sous-propriétés (left/right) peuvent
+    // être undefined (chargement asynchrone du FrameSvg du thème). On applique donc la
+    // largeur corrigée UNE SEULE FOIS après un court délai (ajustementLargeur, défini
+    // dans mainItem), le temps que les marges réelles soient chargées. On n'utilise PAS
+    // de Binding on width : une liaison continue réévalue la largeur à chaque changement
+    // de marge, ce qui fait « vibrer » la géométrie de la fenêtre et décale les ToolTip
+    // de PlasmaComponents3 (ils se basent sur les coordonnées globales au moment de
+    // l'affichage). Une mise à jour unique stabilise la fenêtre et garantit des tooltips
+    // bien positionnés.
+
     function toggle() {
         root.visible = !root.visible;
     }
 
-    // Fenestra : chargements après l'affichage : appelés juste après l'ouverture
+    // Fenestra : chargements après l'affichage : appelés juste après l'ouverture.
+    // Les données légères (dossiers épinglés, compteurs de lancement) sont relues
+    // à chaque ouverture — c'est peu coûteux. En revanche la lecture des dates des
+    // documents récents lance un sous-processus python/sqlite : on ne la relance
+    // donc qu'au plus une fois par minute. Le préchargement au démarrage (3 s)
+    // sert de base aux ouvertures suivantes, ce qui rend l'ouverture instantanée.
+    property double derniereLectureDocs: 0
+    readonly property int intervalLectureDocs: 60000
     function chargerApresOuverture(force) {
         if (!root.visible && !force) return;
         rootItem.loadFolders();
         rootItem.loadAllAppsFolders();
         rootItem.loadLaunchCounts();
-        try {
-            rootItem.refreshDocDates();
-        } catch (e) {
-            console.warn("fenestra-menu11 : page recommandations (dates) :", e);
+        var maintenant = Date.now();
+        if (force || maintenant - derniereLectureDocs >= intervalLectureDocs) {
+            derniereLectureDocs = maintenant;
+            try {
+                rootItem.refreshDocDates();
+            } catch (e) {
+                console.warn("fenestra-menu11 : page recommandations (dates) :", e);
+            }
         }
         if (Plasmoid.configuration.allAppsViewMode === 2) {
             ensureCategoryModel();
@@ -182,14 +318,16 @@ PlasmaCore.Dialog {
         createAllAppsFolderOverlay.visible = false;
         viewModePopup.visible = false;
         categoryFlyout.visible = false;
+        letterPicker.visible = false;
     }
 
     // Fenestra : groupe menu + volet centré : largeur du volet + écart, quand il est (ou va être) ouvert
     property bool voletPrevu: false
     function largeurVolet() {
         if (!voletPrevu) return 0;
+        var pm = kdeConnectPanel.margins || { left: 0, right: 0 };
         var w = kdeConnectPanel.width > 0 ? kdeConnectPanel.width
-              : kdeConnectPanel.mainItem.width + kdeConnectPanel.margins.left + kdeConnectPanel.margins.right;
+              : kdeConnectPanel.mainItem.width + (pm.left || 0) + (pm.right || 0);
         return w + Kirigami.Units.smallSpacing * 2;
     }
 
@@ -209,12 +347,22 @@ PlasmaCore.Dialog {
     function basculerVolet() {
         if (kdeConnectPanel.visible) { kdeConnectPanel.toggle(); return; }
         attenteRecentrage.stop();
+        // Fenestra : ouverture SYNCHRONE — pas de Timer intermédiaire. On met
+        // voletPrevu, on ouvre le volet (visible = true tout de suite) puis
+        // on recalcule la position du menu. Les deux animations partent en
+        // parallèle dès ce moment : glissement du menu et ouverture du volet.
         voletPrevu = true;
+        if (!kdeConnectPanel.visible) {
+            // Fenestra : on garde la préférence synchronisée — toggle() le fait,
+            // mais la branche "ouverture directe" de basculerVolet ne le faisait pas.
+            Plasmoid.configuration.kdeConnectPanelOn = true;
+            kdeConnectPanel.open();
+        }
+        // Le volet est ouvert, sa width est connue → popupPosition donne la bonne pos
         var pos = popupPosition(width, height);
         y = pos.y;
         glisserMenuVers(pos.x);
-        apparitionVolet.interval = delaiOuvertureVolet;   // Fenestra : glissement du menu : le volet arrive après le glissement
-        apparitionVolet.restart();
+        // Plus besoin d'apparitionVolet — tout est déjà lancé en parallèle.
     }
     function recentrerMenu() {
         if (!visible || kdeConnectPanel.visible) return;
@@ -230,44 +378,79 @@ PlasmaCore.Dialog {
         var screen = Qt.rect(screenAvail.x + screenGeom.x, screenAvail.y + screenGeom.y, screenAvail.width, screenAvail.height);
 
         var offset = Kirigami.Units.smallSpacing;
+        var totalW = width + root.largeurVolet();   // Fenestra : menu + volet KDE Connect centrés ensemble
+        // Fenestra : hauteur de FENÊTRE du menu, marges du cadre INCLUSES. « height » d'un
+        // PlasmaCore.Dialog est déjà cette hauteur totale (PlasmaQuick::Dialog : « total
+        // height of the dialog, including margins ») : la retrancher suffit, inutile d'y
+        // rajouter les marges du cadre (les compter deux fois remontait le menu trop haut
+        // ou, selon le thème / le zoom, le laissait déborder sur la barre des tâches).
+        // Au tout premier affichage, « height » peut ne pas avoir encore suivi le
+        // redimensionnement : on calcule alors la hauteur depuis le contenu (rootItem.height)
+        // + marges du cadre et on garde la plus grande, pour rester collé à la barre quelle
+        // que soit la résolution ou l'échelle d'écran.
+        var m = root.margins;
+        var margeGauche = (m && isFinite(m.left)) ? m.left : 0;
+        var margeDroite = (m && isFinite(m.right)) ? m.right : 0;
+        var margeHaut = (m && isFinite(m.top)) ? m.top : 0;
+        var margeBas = (m && isFinite(m.bottom)) ? m.bottom : 0;
+        // Fenestra : hauteur de FENÊTRE du menu. On utilise EN PRIORITÉ le paramètre
+        // « height » (Dialog.height réel, marges du cadre INCLUSES) : cela garantit
+        // que y = écran - hauteurRéelle, donc que le bas de la fenêtre est exactement
+        // collé à la barre des tâches, quelle que soit la résolution. On ne retombe
+        // sur le calcul depuis hauteurContenu + marges que si « height » n'est pas
+        // encore valide (premier affichage, avant que PlasmaQuick n'ait appliqué la
+        // taille). Auparavant, utiliser hauteurContenu (qui soustrait espaceHaut pour
+        // les coins arrondis) donnait une hauteurFenetre inférieure à la hauteur réelle
+        // de la fenêtre : le menu était alors décollé de la barre des tâches.
+        var hauteurFenetre = (isFinite(height) && height > 0)
+            ? height
+            : (rootItem.hauteurContenu + margeHaut);
+        // Aucune marge de sécurité : le menu est collé à la barre des tâches comme le
+        // menu Démarrer de Windows 11 (hauteurContenu limite déjà la hauteur de contenu
+        // pour que la fenêtre tienne dans l'écran utile).
+        // Fenestra : floating = 0 demande à PlasmaQuick de supprimer la bordure du côté
+        // du panneau (bas pour BottomEdge). La bordure basse n'est donc PAS dessinée,
+        // mais margins.bottom peut toujours renvoyer la valeur du Svg (non nulle).
+        // On ne doit PAS ajouter margeBas à y : cela ferait descendre la fenêtre de
+        // l'épaisseur du cadre et la chevaucherait sur la barre des tâches.
+        // y = écran - hauteurFenetre place le bas de la fenêtre exactement au ras de
+        // la barre (bordure basse déjà supprimée par floating = 0).
+        var securite = 0;
 
         // Fall back to bottom-left of screen area when the applet is on the desktop or floating.
-        var x = offset;
-        var y = screen.height - height - offset;
-        var appletTopLeft;
-        var horizMidPoint;
-        var vertMidPoint;
+        var x = screen.x + offset;
+        var y = screen.y + screen.height - hauteurFenetre - securite;
+        var appletTopLeft = parent.mapToGlobal(0, 0);
+        function borne(minV, maxV, v) { return Math.max(minV, Math.min(v, maxV)); }
 
-        if (Plasmoid.configuration.displayPosition === 1) {
-            horizMidPoint = screen.x + (screen.width / 2);
-            vertMidPoint = screen.y + (screen.height / 2);
-            x = horizMidPoint - (width + root.largeurVolet()) / 2;
-            y = vertMidPoint - height / 2;
-        } else if (Plasmoid.configuration.displayPosition === 2) {
-            horizMidPoint = screen.x + (screen.width / 2);
-            vertMidPoint = screen.y + (screen.height / 2);
-            x = horizMidPoint - (width + root.largeurVolet()) / 2;
-            y = screen.y + screen.height - height - offset - panelSvg.margins.top;
-        } else if (Plasmoid.location === PlasmaCore.Types.BottomEdge) {
-            horizMidPoint = screen.x + (screen.width / 2);
-            appletTopLeft = parent.mapToGlobal(0, 0);
-            x = (appletTopLeft.x < horizMidPoint) ? screen.x + offset : (screen.x + screen.width) - width - offset;
-            y = screen.y + screen.height - height - offset - panelSvg.margins.top;
+        // Fenestra : le menu suit l'emplacement du bouton dans la barre. Sa position
+        // s'aligne sur le centre du bouton puis reste dans l'écran (bornée) :
+        // bouton à gauche -> menu à gauche, bouton centré -> menu centré.
+        // Il est collé à la barre (aucun espace) comme le menu Démarrer de Windows 11.
+        if (Plasmoid.location === PlasmaCore.Types.BottomEdge) {
+            var centreBoutonX = appletTopLeft.x + parent.width / 2;
+            x = borne(screen.x + offset,
+                      screen.x + screen.width - totalW - offset,
+                      centreBoutonX - totalW / 2);
+            y = screen.y + screen.height - hauteurFenetre - securite;
         } else if (Plasmoid.location === PlasmaCore.Types.TopEdge) {
-            horizMidPoint = screen.x + (screen.width / 2);
-            var appletBottomLeft = parent.mapToGlobal(0, parent.height);
-            x = (appletBottomLeft.x < horizMidPoint) ? screen.x + offset : (screen.x + screen.width) - width - offset;
-            y = screen.y + panelSvg.margins.bottom + offset;
+            var centreBoutonHautX = appletTopLeft.x + parent.width / 2;
+            x = borne(screen.x + offset,
+                      screen.x + screen.width - totalW - offset,
+                      centreBoutonHautX - totalW / 2);
+            y = screen.y;
         } else if (Plasmoid.location === PlasmaCore.Types.LeftEdge) {
-            vertMidPoint = screen.y + (screen.height / 2);
-            appletTopLeft = parent.mapToGlobal(0, 0);
-            x = appletTopLeft.x * 2 + parent.width + panelSvg.margins.right + offset;
-            y = screen.y + (appletTopLeft.y < vertMidPoint) ? screen.y + offset : (screen.y + screen.height) - height - offset;
+            var centreBoutonY = appletTopLeft.y + parent.height / 2;
+            x = appletTopLeft.x + parent.width + margeDroite + offset;
+            y = borne(screen.y + offset,
+                      screen.y + screen.height - hauteurFenetre - securite,
+                      centreBoutonY - hauteurFenetre / 2);
         } else if (Plasmoid.location === PlasmaCore.Types.RightEdge) {
-            vertMidPoint = screen.y + (screen.height / 2);
-            appletTopLeft = parent.mapToGlobal(0, 0);
-            x = appletTopLeft.x - panelSvg.margins.left - offset - width;
-            y = screen.y + (appletTopLeft.y < vertMidPoint) ? screen.y + offset : (screen.y + screen.height) - height - offset;
+            var centreBoutonDroitY = appletTopLeft.y + parent.height / 2;
+            x = appletTopLeft.x - margeGauche - offset - width;
+            y = borne(screen.y + offset,
+                      screen.y + screen.height - hauteurFenetre - securite,
+                      centreBoutonDroitY - hauteurFenetre / 2);
         }
         return Qt.point(x, y);
     }
@@ -280,6 +463,23 @@ PlasmaCore.Dialog {
         id: rootItem
         // Fenestra : chargements après l'affichage : minuteur des chargements
         Timer { id: chargementsOuverture; interval: 30; onTriggered: root.chargerApresOuverture() }
+        // Fenestra : re-correction de la largeur après chargement des marges du cadre
+        // (une seule fois). Stabilise la géométrie pour les ToolTip (pas de Binding
+        // on width continu qui ferait vibrer la fenêtre).
+        Timer {
+            id: ajustementLargeur
+            interval: 30
+            repeat: false
+            onTriggered: {
+                if (!root.visible) return;
+                var ml = isFinite(root.margins.left) ? root.margins.left : 0;
+                var mr = isFinite(root.margins.right) ? root.margins.right : 0;
+                var w = Math.round(rootItem.largeurVoulue + ml + mr);
+                if (w !== root.width) {
+                    root.width = w;
+                }
+            }
+        }
         // Fenestra : groupe menu + volet centré : le volet s'ouvre ou se ferme -> le menu se recentre
         Connections {
             target: kdeConnectPanel
@@ -305,7 +505,7 @@ PlasmaCore.Dialog {
         Timer { id: prechargement; interval: 3000; onTriggered: root.chargerApresOuverture(true) }
 
 
-        property int widthComputed: root.cellSizeWidth * root.colonnesAuto + Kirigami.Units.gridUnit * 2
+        property int widthComputed: root.largeurColonne * root.colonnesAuto + Kirigami.Units.gridUnit * 2
 
         property int pinnedCurrentPage: 0
         property int pinnedItemsPerPage: root.colonnesAuto * Plasmoid.configuration.numberRows
@@ -391,21 +591,79 @@ PlasmaCore.Dialog {
             }
         }
 
-        // Fenestra : largeur stable : 733 px de contenu pour 7 colonnes (+ 12 px de cadre = 745 px), en proportion sinon
         // Fenestra : marges latérales réduites : 8 px de marge de chaque côté (18 à l'origine)
         readonly property int margeCote: 8
-        // contenu : 697 px d'icônes pour 7 colonnes + 2 marges = 713 px (+ 12 px de cadre = 725 px de fenêtre)
-        readonly property int largeurVoulue: Math.round(697 * root.colonnesAuto / 7) + 2 * margeCote
+        // Fenestra : la largeur de la fenêtre suit exactement la largeur du contenu
+        // (colonnes + marge de la grille). Plus de décalage entre la fenêtre et la grille,
+        // donc plus de colonne rognée à droite ; et le menu reste plus étroit, proche de
+        // Windows 11, au lieu des 697 px fixes d'origine.
+        readonly property int largeurVoulue: widthComputed + 2 * margeCote
         width: largeurVoulue
-        // hauteur souhaitée de la page qui défile (la hauteur réelle s'adapte à la place disponible)
-        readonly property real viewWanted: Kirigami.Units.gridUnit * 38
+        // Fenestra : hauteur de la zone défilante. On remplit toute la hauteur DISPONIBLE
+        // (celle qui s'arrête au-dessus de la barre des tâches), comme le menu Démarrer de
+        // Windows 11 qui descend jusqu'à la barre : le menu n'est donc plus « écrasé »
+        // (large et bas). On plafonne à ~34 gridUnit (~740 px, la hauteur du vrai menu
+        // Windows 11) pour ne pas coller au bord haut sur les grands écrans.
+        readonly property real viewWanted: {
+            // Fenestra : hauteur de la zone défilante, TOUJOURS bornée par l'écran utile.
+            // On retranche l'en-tête (view.y) et le pied (footer.height) de la hauteur
+            // d'écran disponible : le menu entier (en-tête + page + pied) tient donc
+            // forcément à l'écran, même en basse résolution (ex. 1200x800). Le plafond
+            // « menu Démarrer » (34 gridUnit) garde les proportions de Windows 11 sur les
+            // grands écrans. Le plancher ne dépasse JAMAIS l'espace réellement libre,
+            // sinon le haut du menu serait rogné par PlasmaQuick (barre de recherche coupée).
+            // Aucune marge de sécurité soustraite : le menu est collé à la barre des tâches
+            // comme le menu Démarrer de Windows 11 (cf. popupPosition / hauteurContenu).
+            var ecran = kicker.availableScreenRect.height;
+            var plafond = Kirigami.Units.gridUnit * 34;
+            if (!isFinite(ecran) || ecran <= 0)
+                return plafond;
+            var dispo = ecran - view.y - footer.height;
+            if (dispo <= 0)
+                return Math.max(0, ecran - view.y - footer.height);
+            return Math.min(dispo, Math.max(Kirigami.Units.gridUnit * 8, Math.min(plafond, dispo)));
+        }
 
-        height: view.y + rootItem.viewWanted + footer.height + 0   // hauteur demandée : haut de la page + page souhaitée + pied (+ 0 px)
+        // Fenestra : hauteur du contenu (haut de page + page souhaitée + pied). C'est une
+        // propriété en LECTURE SEULE, volontairement distincte de « height » : le dialogue
+        // réécrit « height » d'après la taille de la fenêtre, et si les indices Layout
+        // pointaient sur « height », chaque réécriture relançait un redimensionnement en
+        // boucle (fenêtre qui rétrécit jusqu'à zéro). Le plancher (200 px) garantit une
+        // taille toujours positive, la condition vérifiée avant l'affichage.
+        readonly property int hauteurContenu: {
+            var h = view.y + rootItem.viewWanted + footer.height;
+            // Fenestra : filet de sécurité : le menu ne doit jamais dépasser l'écran utile,
+            // sinon PlasmaQuick le rogne par le haut (barre de recherche / en-tête coupés).
+            // floating = 0 supprime la bordure BASSE du cadre (celle du côté de la barre
+            // des tâches) : on ne réserve donc que la marge HAUTE (mt) pour dimensionner
+            // le contenu. La marge basse (mb) n'est pas dessinée, inutile de lui réserver
+            // de la place (ça laisserait un écart entre le menu et la barre).
+            var ecran = kicker.availableScreenRect.height;
+            if (isFinite(ecran) && ecran > 0) {
+                var m = root.margins;
+                var mt = (m && isFinite(m.top)) ? m.top : 0;
+                var marginsConnues = mt > 0;
+                // Si les marges du cadre ne sont pas encore chargées (premier affichage),
+                // on utilise une estimation prudente pour la marge haute uniquement (la
+                // bordure basse est supprimée par floating = 0).
+                var margeCadre = marginsConnues ? mt : Kirigami.Units.gridUnit;
+                // Fenestra : laisse un espace entre le HAUT de la fenêtre et le bord
+                // supérieur de l'écran. Sans ça, en basse résolution, la fenêtre du menu
+                // touche exactement le haut de l'écran et KWin rogne les coins arrondis
+                // du cadre (les pixels anti-crénelage dépassent de l'écran). L'espace
+                // réservé vaut la marge haute du cadre + un petit espace, ce qui laisse
+                // apparaître le coin arrondi en entier.
+                var espaceHaut = (marginsConnues ? mt : Kirigami.Units.gridUnit) + Kirigami.Units.smallSpacing;
+                h = Math.min(h, ecran - margeCadre - espaceHaut);
+            }
+            return isFinite(h) && h >= 1 ? Math.round(h) : 200;
+        }
+        height: hauteurContenu
 
         Layout.minimumWidth: largeurVoulue
         Layout.maximumWidth: largeurVoulue
-        Layout.minimumHeight: height
-        Layout.maximumHeight: height
+        Layout.minimumHeight: hauteurContenu
+        Layout.maximumHeight: hauteurContenu
 
         focus: true
         onFocusChanged: searchField.focus = true
@@ -421,28 +679,39 @@ PlasmaCore.Dialog {
 
         // ── Pinned Folders ──────────────────────────────────────────────────
         property var pinnedFoldersData: []
+        // Fenestra : contenu brut déjà lu : on ne reconstruit que s'il a changé
+        // (chaque ouverture relisait la config et recréait les tableaux, ce qui
+        // déclenchait des reconstructions de modèles inutiles à l'ouverture).
+        property string _foldersRaw: ""
 
         function loadFolders() {
-            var raw = Plasmoid.configuration.pinnedFolders;
-            if (!raw || raw.length === 0) { pinnedFoldersData = []; return; }
+            var raw = Plasmoid.configuration.pinnedFolders || "";
+            if (raw === _foldersRaw) return;
+            _foldersRaw = raw;
+            if (raw.length === 0) { pinnedFoldersData = []; return; }
             try { pinnedFoldersData = JSON.parse(raw); } catch(e) { pinnedFoldersData = []; }
         }
 
         function saveFolders() {
-            Plasmoid.configuration.pinnedFolders = JSON.stringify(pinnedFoldersData);
+            _foldersRaw = JSON.stringify(pinnedFoldersData);
+            Plasmoid.configuration.pinnedFolders = _foldersRaw;
         }
 
         // ── All Apps Folders ────────────────────────────────────────────────
         property var allAppsFoldersData: []
+        property string _allAppsFoldersRaw: ""
 
         function loadAllAppsFolders() {
-            var raw = Plasmoid.configuration.allAppsFolders;
-            if (!raw || raw.length === 0) { allAppsFoldersData = []; return; }
+            var raw = Plasmoid.configuration.allAppsFolders || "";
+            if (raw === _allAppsFoldersRaw) return;
+            _allAppsFoldersRaw = raw;
+            if (raw.length === 0) { allAppsFoldersData = []; return; }
             try { allAppsFoldersData = JSON.parse(raw); } catch(e) { allAppsFoldersData = []; }
         }
 
         function saveAllAppsFolders() {
-            Plasmoid.configuration.allAppsFolders = JSON.stringify(allAppsFoldersData);
+            _allAppsFoldersRaw = JSON.stringify(allAppsFoldersData);
+            Plasmoid.configuration.allAppsFolders = _allAppsFoldersRaw;
         }
 
         function launchFolderApp(desktopId) {
@@ -494,9 +763,40 @@ PlasmaCore.Dialog {
         readonly property int kickerDisplayRole:     Qt.DisplayRole          // 0
         readonly property int kickerDecorationRole:  Qt.DecorationRole       // 1
         readonly property int kickerDescriptionRole: Qt.UserRole + 1         // 257
+        readonly property int kickerGroupRole:       Qt.UserRole + 2         // 258
         readonly property int kickerFavoriteIdRole:  Qt.UserRole + 3         // 259
         readonly property int kickerUrlRole:         Qt.UserRole + 10        // 266
         readonly property int kickerActionListRole:  Qt.UserRole + 9         // 265
+
+        // Fenestra : lettre de section « langue du système » pour le mode alphabétique.
+        // Le modèle Kicker amont expose le rôle « group » (Qt.UserRole + 2), renvoyé par
+        // AppEntry::group()/groupName(). Ce calcul appartient à l'amont et applique les
+        // règles de la locale courante :
+        //   • un nom commençant par un chiffre  -> « # »
+        //   • ponctuation / symbole / espace    -> « & »
+        //   • Hangul                            -> décomposition en jamo (choseong)
+        //   • chinois (Han)                     -> translittération ICU => initiale pinyin
+        //                                          (« 表情符号… » se range sous B, etc.)
+        //   • japonais                          -> Kanji regroupés sous « 漢 », katakana translittérés
+        //   • le reste                          -> première lettre du nom
+        // On lit donc ce rôle au lieu de fabriquer la lettre soi-même à partir du seul
+        // premier caractère (ce qui cassait tout pour les noms non latins : ils tombaient
+        // tous dans « # »). On met la lettre en majuscules comme la liste de sections de Kicker.
+        function groupForApp(modelIndex, name) {
+            var g = "";
+            try { g = String(sortedAppsModel.data(modelIndex, kickerGroupRole) || ""); } catch (e) { g = ""; }
+            if (g !== "") return g.toUpperCase();
+            return groupForName(name);
+        }
+
+        // Repli si le rôle « group » est indisponible (modèle sans champ group) :
+        // première lettre ASCII en majuscule, sinon « # ».
+        function groupForName(name) {
+            var n = String(name || "");
+            var c = n.length > 0 ? n.charAt(0).toUpperCase() : "#";
+            if (c < "A" || c > "Z") c = "#";
+            return c;
+        }
 
         function lookupAppInfo(favId) {
             for (var i = 0; i < sortedAppsModel.rowCount(); i++) {
@@ -541,13 +841,15 @@ PlasmaCore.Dialog {
                 var midx = sortedAppsModel.index(i, 0);
                 var favId = favoriteIdRole !== undefined ? (sortedAppsModel.data(midx, favoriteIdRole) || "") : "";
                 if (favId !== "" && folderedIds[favId] !== undefined) continue;
+                var appName = sortedAppsModel.data(midx, displayRole) || "";
                 appRows.push({
                     itemType:    "app",
-                    display:     sortedAppsModel.data(midx, displayRole)    || "",
+                    display:     appName,
                     decoration:  sortedAppsModel.data(midx, decorationRole) || "",
                     favoriteId:  favId,
+                    group:       groupForApp(midx, appName),
                     description: descRole !== undefined ? (sortedAppsModel.data(midx, descRole) || "") : "",
-                    url:         urlRole  !== undefined ? (sortedAppsModel.data(midx, urlRole)  || "") : "",
+                    url:         urlRole  !== undefined ? String(sortedAppsModel.data(midx, urlRole)  || "") : "",
                     disabled: false, hasActionList: false,
                     sourceRow: i, folderIdx: -1, indented: false, expanded: false
                 });
@@ -562,6 +864,7 @@ PlasmaCore.Dialog {
                     display:     fd2.name,
                     decoration:  "folder",
                     favoriteId:  "",
+                    group:       groupForName(fd2.name),
                     description: i18np("%1 app", "%1 apps", fd2.items ? fd2.items.length : 0),
                     url: "",
                     disabled: false, hasActionList: true,
@@ -578,6 +881,14 @@ PlasmaCore.Dialog {
                 folderRows.sort(function(a, b) { return (allAppsFoldersData[b.folderIdx].createdAt||0) - (allAppsFoldersData[a.folderIdx].createdAt||0); });
             else if (sortMode === 3)
                 folderRows.sort(function(a, b) { return (allAppsFoldersData[a.folderIdx].createdAt||0) - (allAppsFoldersData[b.folderIdx].createdAt||0); });
+
+            // Fenestra : en tri alphabétique (modes 0/1) le modèle Kicker amont fournit les
+            // entrées déjà ordonnées « langue du système » (AppsModel::sortEntries trie par
+            // groupe puis nom via QCollator ; cf. plasma-workspace/applets/kicker). Le proxy
+            // ne les retrie donc plus (sortRoleName vide) : appRows arrive en ordre croissant.
+            // Pour le mode 1 (Z→A) on inverse simplement cette liste, ce qui conserve l'ordre
+            // de collation au lieu de le casser par un tri « display » brut.
+            if (sortMode === 1) appRows.reverse();
 
             // Combine based on sort mode
             var combined = [];
@@ -612,16 +923,18 @@ PlasmaCore.Dialog {
                                ? allAppsGrid.columnsCount : 1;
                 for (var hi = 0; hi < combined.length; hi++) {
                     var row = combined[hi];
-                    var name = row.display || "";
-                    var letter = name.length > 0 ? name[0].toUpperCase() : "#";
-                    if (letter < "A" || letter > "Z") letter = "#";
+                    // Fenestra : la lettre provient du rôle « group » du modèle Kicker (voir
+                    // groupForApp) et suit donc la langue du système : les noms chinois sont
+                    // rangés par initiale pinyin, les noms Hangul par jamo, etc. On ne
+                    // recalcule plus la lettre à partir du seul premier caractère.
+                    var letter = (row.group && row.group.length > 0) ? row.group : groupForName(row.display);
                     if (letter !== lastLetter) {
                         if (gridCols > 1 && withHeaders.length % gridCols !== 0) {
                             var manque = gridCols - (withHeaders.length % gridCols);
                             for (var bi = 0; bi < manque; bi++) {
                                 withHeaders.push({
                                     itemType: "blank",
-                                    display: "", decoration: "", favoriteId: "", description: "", url: "",
+                                    display: "", decoration: "", favoriteId: "", group: "", description: "", url: "",
                                     disabled: true, hasActionList: false,
                                     sourceRow: -1, folderIdx: -1, indented: false, expanded: false
                                 });
@@ -632,6 +945,7 @@ PlasmaCore.Dialog {
                             display: letter,
                             decoration: "",
                             favoriteId: "",
+                            group: letter,
                             description: "",
                             url: "",
                             disabled: false, hasActionList: false,
@@ -642,7 +956,7 @@ PlasmaCore.Dialog {
                             for (var bi2 = 0; bi2 < gridCols - 1; bi2++) {
                                 withHeaders.push({
                                     itemType: "blank",
-                                    display: "", decoration: "", favoriteId: "", description: "", url: "",
+                                    display: "", decoration: "", favoriteId: "", group: "", description: "", url: "",
                                     disabled: true, hasActionList: false,
                                     sourceRow: -1, folderIdx: -1, indented: false, expanded: false
                                 });
@@ -727,15 +1041,19 @@ PlasmaCore.Dialog {
 
         // ── Launch Frequency Tracking ───────────────────────────────────────
         property var launchCounts: ({})
+        property string _launchCountsRaw: ""
 
         function loadLaunchCounts() {
-            var raw = Plasmoid.configuration.appLaunchCounts;
-            if (!raw || raw.length === 0) { launchCounts = ({}); return; }
+            var raw = Plasmoid.configuration.appLaunchCounts || "";
+            if (raw === _launchCountsRaw) return;
+            _launchCountsRaw = raw;
+            if (raw.length === 0) { launchCounts = ({}); return; }
             try { launchCounts = JSON.parse(raw); } catch(e) { launchCounts = ({}); }
         }
 
         function saveLaunchCounts() {
-            Plasmoid.configuration.appLaunchCounts = JSON.stringify(launchCounts);
+            _launchCountsRaw = JSON.stringify(launchCounts);
+            Plasmoid.configuration.appLaunchCounts = _launchCountsRaw;
         }
 
         // Returns the current workflow bucket key: "day-slot"
@@ -900,12 +1218,23 @@ PlasmaCore.Dialog {
         KItemModels.KSortFilterProxyModel {
             id: sortedAppsModel
 
+            // Fenestra : en mode alphabétique (0 = A→Z, 1 = Z→A), le tri revient au modèle
+            // Kicker amont. AppsModel::sortEntries ordonne en effet ses entrées par groupe
+            // puis par nom via QCollator, c.-à-d. selon les règles de collation de la locale
+            // du système (les noms chinois sont triés par pinyin, etc.). Un « sortRoleName »
+            // vide désactive le tri interne du proxy et préserve cet ordre amont ; on évite
+            // ainsi le tri « display » brut (comparaison de points de code) qui rangeait tous
+            // les noms non latins à la fin. Les modes 2/3 (url) et 4 (description) gardent
+            // leur tri propre.
             sortRoleName: {
                 var m = Plasmoid.configuration.allAppsSortMode;
                 if (m === 4) return "description";
                 if (m === 2 || m === 3) return "url";
-                return "display";
+                return "";
             }
+            // Fenestra : quand le proxy trie lui-même, il le fait selon la locale du système
+            sortCaseSensitivity: Qt.CaseInsensitive
+            isSortLocaleAware: true
             sortOrder: {
                 var m = Plasmoid.configuration.allAppsSortMode;
                 return (m === 1 || m === 3) ? Qt.DescendingOrder : Qt.AscendingOrder;
@@ -1316,8 +1645,10 @@ PlasmaCore.Dialog {
                 topMargin: Kirigami.Units.gridUnit - 10
                 left: parent.left
                 leftMargin: rootItem.margeCote + 20   // Fenestra : recherche décalée
-                right: kdeConnectButton.left
-                rightMargin: Kirigami.Units.smallSpacing * 2 + 10   // compense le décalage du bouton
+                // Fenestra : ancre à droite sur le bouton KDE Connect s'il est visible,
+                // sinon sur le bord parent (la recherche remplit toute la largeur disponible).
+                right: Plasmoid.configuration.kdeConnectShow ? kdeConnectButton.left : parent.right
+                rightMargin: Plasmoid.configuration.kdeConnectShow ? (Kirigami.Units.smallSpacing * 2 + 10) : (rootItem.margeCote + 20)
             }
             focus: true
             placeholderText: i18n("Search for apps, settings and documents")
@@ -1515,6 +1846,7 @@ PlasmaCore.Dialog {
         // ── Bouton KDE Connect à droite de la recherche (action à brancher plus tard) ──
         Item {
             id: kdeConnectButton
+            visible: Plasmoid.configuration.kdeConnectShow   // Fenestra : masque le bouton selon préférence
             anchors {
                 top: searchField.top
                 right: parent.right
@@ -1550,9 +1882,13 @@ PlasmaCore.Dialog {
                 onClicked: root.basculerVolet()   // Fenestra : ordre du recentrage
             }
 
-            PC3.ToolTip.text: "KDE Connect"
+            // Fenestra : PC3.ToolTip — même style que Animated-plasma-task
+            // (PlasmaComponents3.ToolTip). Géré comme un attribut du déclencheur
+            // (pas comme un Item enfant) : Plasma choisit la position selon l'espace
+            // disponible. C'est le pattern KDE standard.
+            PC3.ToolTip.text: i18n("KDE Connect")
+            PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
             PC3.ToolTip.visible: kdeConnectMouse.containsMouse
-            PC3.ToolTip.delay: 400
         }
 
         // ── Quick Actions Bar ────────────────────────────────────────────────
@@ -1640,6 +1976,11 @@ PlasmaCore.Dialog {
             interactive: false
             currentIndex: 0
             clip: true
+            // Quand le sélecteur de lettres est ouvert, on masque la liste des applications
+            // derrière lui : le fond du dialogue Plasma apparaît alors à travers le sélecteur
+            // transparent, ce qui garantit un rendu identique au thème (pas de fond blanc).
+            opacity: letterPicker.visible ? 0.0 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 80 } }
 
             anchors {
                 top: searchSeparator.bottom
@@ -1654,8 +1995,10 @@ PlasmaCore.Dialog {
                 documentsGrid.currentIndex = -1;
             }
 
-            width: rootItem.widthComputed / 0.1
-            height: Math.max(Kirigami.Units.gridUnit * 8, Math.min(rootItem.viewWanted, rootItem.height - view.y - footer.height - 0))
+            width: rootItem.widthComputed
+            // Fenestra : la page ne fait jamais plus que l'espace restant (viewWanted est déjà
+            // borné par l'écran utile) — pas de plancher qui forcerait un débordement.
+            height: Math.max(1, Math.min(rootItem.viewWanted, rootItem.height - view.y - footer.height))
 
             // PAGE 1 — page unique : épinglés, recommandations, « Tout »
             Flickable {
@@ -2033,7 +2376,7 @@ PlasmaCore.Dialog {
                     height: recentAppsStripHeight
                           + butttonActionAllApps.implicitHeight
                           + Kirigami.Units.largeSpacing * 2
-                          + (docsIconSize + Kirigami.Units.largeSpacing * 2) * 3
+                          + (Plasmoid.configuration.showRecentDocs ? (docsIconSize + Kirigami.Units.largeSpacing * 2) * 3 : 0)
 
                     // Recently opened apps — horizontal icon strip
                     Item {
@@ -3134,7 +3477,12 @@ PlasmaCore.Dialog {
 
             // catégorie contenant une nouveauté : les cellules gagnent une ligne pour le tag
             property bool hasNew: false
-            readonly property real cellH: root.cellSizeHeight + (hasNew ? Kirigami.Units.gridUnit : 0)
+            // Fenestra : cette fenêtre force « labels2lines: true ». Si la config générale
+            // n'est PAS sur 2 lignes, cellSizeHeight n'en réserve qu'une : on ajoute donc la
+            // ligne manquante pour que le nom ne déborde pas de la tuile non plus ici.
+            readonly property real cellH: root.cellSizeHeight
+                                          + (Plasmoid.configuration.labels2lines ? 0 : root.labelLineHeight)
+                                          + (hasNew ? Kirigami.Units.gridUnit : 0)
 
             ListModel { id: categoryFlatModel } // liste aplatie (plus de sous-tuiles de groupe)
 
@@ -3297,6 +3645,8 @@ PlasmaCore.Dialog {
             Footer {
                 id: footerContent
                 anchors.fill: parent
+                // Fenestra : écran utile transmis au pied (la fenêtre Compte s'y borne)
+                ecranUtile: root.ecranUtile
                 // le menu se ferme -> les fenêtres Compte / Alimentation aussi
                 Connections {
                     target: root
@@ -3326,19 +3676,218 @@ PlasmaCore.Dialog {
             }
         }
 
-        NumberAnimation {
-            id: letterScrollAnim
-            target: allAppsGrid
-            property: "contentY"
-            duration: 220
-            easing.type: Easing.OutCubic
+        // Fenestra : retour visuel « façon KDE » de la navigation alphabétique — la lettre
+        // cliquée s'affiche en grand au centre de la page, puis s'efface (cf. jumpToLetter).
+        Text {
+            id: letterOverlay
+            property string currentLetter: ""
+            text: currentLetter
+            enabled: false               // purement décoratif : ne capte aucun clic
+            z: 50
+            opacity: 0
+            anchors.centerIn: view
+            color: colorWithAlpha(Kirigami.Theme.textColor, 0.85)
+            font.family: Kirigami.Theme.defaultFont.family
+            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 6
+            font.weight: Font.DemiBold
+            Behavior on opacity { NumberAnimation { duration: 120 } }
         }
 
         Timer {
             id: overlayTimer
             interval: 700
             repeat: false
-            onTriggered: alphabetOverlay.opacity = 0
+            onTriggered: letterOverlay.opacity = 0
+        }
+
+        // Fenestra : sélecteur de lettres (façon KDE Kickoff). Cliquer sur un en-tête
+        // de lettre de la page « Tout » ouvre une page PLEINE ÉCRAN qui remplace la
+        // liste des applis : on n'y voit que la grille des lettres + un bouton
+        // « Retour ». Toutes les lettres A-Z ainsi que « & » (symboles) et « # »
+        // (chiffres) sont affichées ; celles qui n'ont aucune application sont
+        // grisées et non cliquables. Un clic sur une lettre disponible saute à
+        // sa section.
+        // Fenestra : la liste des lettres n'est PLUS codée en dur (A-Z/#/&). Elle est
+        // construite dynamiquement à partir des en-têtes de section du modèle
+        // (itemType === "letterHeader"), qui portent déjà la lettre « langue du système »
+        // fournie par le rôle « group » de Kicker. Sous une locale japonaise on obtient
+        // donc les colonnes de kana (あ/か/さ/…), en chinois les initiales pinyin, etc.
+        property var availableLetters: ({})   // dictionnaire lettre -> true pour la recherche O(1)
+        property var fullAlphabet: []          // liste ordonnée des lettres de la langue courante
+
+        function refreshAvailableLetters() {
+            var set = {};
+            var ordered = [];
+            for (var i = 0; i < allAppsComboModel.count; i++) {
+                var e = allAppsComboModel.get(i);
+                if (e.itemType === "letterHeader") {
+                    var l = e.group || e.display;
+                    if (l && !set[l]) {
+                        set[l] = true;
+                        ordered.push(l);
+                    }
+                }
+            }
+            rootItem.availableLetters = set;
+            rootItem.fullAlphabet = ordered;
+        }
+
+        function openLetterPicker() {
+            rootItem.refreshAvailableLetters();
+            letterPicker.open();
+        }
+
+        Item {
+            id: letterPicker
+            visible: false
+            z: 60
+            anchors.fill: view
+
+            // Fenestra : animation d'ouverture/fermeture calquée sur le volet de catégorie
+            // (categoryFlyout). `progress` va de 0 (fermé) à 1 (ouvert). L'opacité et
+            // l'échelle du contenu suivent `progress`. À l'ouverture : visible=true puis
+            // openAnim ; à la fermeture : closeAnim puis visible=false dans onFinished.
+            property real progress: 0
+            property bool closing: false
+
+            function open() {
+                letterPicker.visible = true;
+                letterPicker.closing = false;
+                letterPickerOpenAnim.start();
+            }
+            function close() {
+                if (letterPicker.closing) return;
+                letterPicker.closing = true;
+                letterPickerCloseAnim.start();
+            }
+
+            NumberAnimation {
+                id: letterPickerOpenAnim
+                target: letterPicker
+                property: "progress"
+                to: 1
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                id: letterPickerCloseAnim
+                target: letterPicker
+                property: "progress"
+                to: 0
+                duration: 140
+                easing.type: Easing.InCubic
+                onFinished: {
+                    letterPicker.closing = false;
+                    letterPicker.visible = false;
+                }
+            }
+
+            // Pas de fond propre : le sélecteur est transparent et laisse apparaître le
+            // fond du dialogue Plasma lui-même (le FrameSvg « dialogs/background » dessiné
+            // par PlasmaCore.Dialog derrière le mainItem). Comme c'est le dialogue qui peint
+            // son propre fond, la couleur, le dégradé et la texture correspondent EXACTEMENT
+            // à l'apparence Plasma 6 du thème, sans risque de décalage (fond blanc solide vs
+            // fond du thème). La liste des applications est masquée en mettant l'opacité de
+            // la vue à 0 quand le sélecteur est ouvert (cf. SwipeView « view »).
+
+            // en-tête : bouton « Retour » en haut à droite, même style que les autres
+            // boutons du menu (SectionButton) pour une apparence Plasma 6 cohérente.
+            Item {
+                id: pickerHeader
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: backBtn.implicitHeight + Kirigami.Units.gridUnit
+                opacity: letterPicker.progress
+                Behavior on opacity { NumberAnimation { duration: 80 } }
+
+                SectionButton {
+                    id: backBtn
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: rootItem.margeCote
+                    iconName: "go-previous"
+                    iconLeft: true
+                    text: i18n("Back")
+                    buttonHeight: 28
+                    onClicked: letterPicker.close()
+                }
+            }
+
+            Grid {
+                id: letterGrid
+                anchors.centerIn: parent
+                opacity: letterPicker.progress
+                transform: Scale {
+                    origin.x: letterGrid.width / 2
+                    origin.y: letterGrid.height / 2
+                    xScale: 0.7 + 0.3 * letterPicker.progress
+                    yScale: xScale
+                }
+                columns: {
+                    var cell = Kirigami.Units.gridUnit * 2.8;
+                    var spacing = Kirigami.Units.gridUnit;
+                    // largeur utile = largeur du sélecteur - marges latérales
+                    var usable = letterPicker.width - Kirigami.Units.gridUnit * 2;
+                    // N colonnes de largeur « cell » séparées par « spacing » :
+                    //   total = N * cell + (N - 1) * spacing = N * (cell + spacing) - spacing
+                    // On cherche le plus grand N tel que total <= usable :
+                    //   N <= (usable + spacing) / (cell + spacing)
+                    // (Sans tenir compte du spacing, la grille débordait et la dernière
+                    // colonne était tronquée — cf. lettre « L » coupée à droite.)
+                    return Math.max(1, Math.min(8, Math.floor((usable + spacing) / (cell + spacing))));
+                }
+                spacing: Kirigami.Units.gridUnit
+
+                Repeater {
+                    model: rootItem.fullAlphabet
+                    delegate: Item {
+                        readonly property string letter: modelData
+                        readonly property bool letterAvailable: rootItem.availableLetters[letter] === true
+
+                        width: Kirigami.Units.gridUnit * 2.8
+                        height: width
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: {
+                                if (!letterAvailable) return "transparent";
+                                if (letterCellMouse.pressed) return colorWithAlpha(Kirigami.Theme.highlightColor, 0.35);
+                                if (letterCellMouse.containsMouse) return colorWithAlpha(Kirigami.Theme.highlightColor, 0.22);
+                                return "transparent";
+                            }
+                            // contour visible au survol (lettres disponibles uniquement)
+                            border.width: (letterAvailable && letterCellMouse.containsMouse) ? 1 : 0
+                            border.color: colorWithAlpha(Kirigami.Theme.highlightColor, 0.7)
+                            Behavior on color { ColorAnimation { duration: 80 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: letter
+                                color: letterAvailable
+                                    ? Kirigami.Theme.textColor
+                                    : Kirigami.Theme.disabledTextColor
+                                font.family: Kirigami.Theme.defaultFont.family
+                                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.8
+                                font.weight: Font.DemiBold
+                            }
+
+                            MouseArea {
+                                id: letterCellMouse
+                                anchors.fill: parent
+                                enabled: letterAvailable
+                                hoverEnabled: true
+                                cursorShape: Qt.ArrowCursor
+                                onClicked: {
+                                    root.jumpToLetter(letter);
+                                    letterPicker.close();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Timer {
@@ -3391,6 +3940,10 @@ PlasmaCore.Dialog {
                     }
                 }
             }
+            // Fenestra : clic sur un en-tête de lettre -> ouvre le sélecteur de lettres
+            // (grille de toutes les lettres disponibles) ; le choix d'une lettre s'y
+            // fait, puis saute à la section (cf. letterPicker / jumpToLetter).
+            function onLetterActivated(letter) { rootItem.openLetterPicker(); }
         }
 
         // ── All Apps grid: folder edit button dispatch ───────────────────────
@@ -4515,38 +5068,36 @@ PlasmaCore.Dialog {
         }
     }
 
-    function scrollToLetter(letter) {
-        if (allAppsComboModel.count === 0) return;
-
-        alphabetOverlay.currentLetter = letter;
-        alphabetOverlay.opacity = 1;
-        overlayTimer.restart();
+    // Fenestra : navigation alphabétique (clic sur un en-tête de lettre de la page
+    // « Tout »). Reproduit le comportement de KDE (plasma-desktop, section Applications :
+    // « cliquez sur une lettre pour aller au premier élément de la section ») : la page
+    // défile jusqu'à la section de la lettre, et la lettre choisie s'affiche en grand.
+    // Important : dans ce fork c'est la PAGE (mainFlick) qui défile, pas la grille.
+    function jumpToLetter(letter) {
+        if (!letter || allAppsComboModel.count === 0) return;
 
         var targetIndex = -1;
         for (var i = 0; i < allAppsComboModel.count; i++) {
             var entry = allAppsComboModel.get(i);
-            if (entry.indented) continue;  // skip expanded folder children
-            var name = entry.display;
-            if (name && name.length > 0) {
-                var c = name[0].toUpperCase();
-                if (letter === "#") {
-                    if (c < "A" || c > "Z") { targetIndex = i; break; }
-                } else if (c >= letter) {
-                    targetIndex = i; break;
-                }
+            // Fenestra : la lettre provient du rôle « group » du modèle Kicker (langue
+            // du système) ; l'en-tête porte la même lettre dans « group » et « display ».
+            if (entry.itemType === "letterHeader"
+                && (entry.group === letter || entry.display === letter)) {
+                targetIndex = i;
+                break;
             }
         }
         if (targetIndex < 0) return;
 
         var columns = Math.max(1, Math.floor(allAppsGrid.width / allAppsGrid.cellWidth));
-        var targetY = Math.floor(targetIndex / columns) * allAppsGrid.cellHeight;
-        var maxY = Math.max(0, allAppsGrid.contentHeight - allAppsGrid.height);
-        targetY = Math.min(targetY, maxY);
+        var targetY = allAppsGridContainer.y
+                      + Math.floor(targetIndex / columns) * allAppsGrid.cellHeight
+                      - Kirigami.Units.largeSpacing;
+        mainFlick.scrollTo(targetY);
 
-        allAppsGrid.currentIndex = -1;
-        letterScrollAnim.stop();
-        letterScrollAnim.to = targetY;
-        letterScrollAnim.start();
+        letterOverlay.currentLetter = letter;
+        letterOverlay.opacity = 1;
+        overlayTimer.restart();
     }
 
     Component.onCompleted: {

@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /*
     SPDX-FileCopyrightText: 2015 Eike Hein <hein@kde.org>
@@ -120,11 +120,24 @@ Item {
     }
     property bool isLetterHeader: ("itemType" in model) && model.itemType === "letterHeader"
     property bool isBlank: ("itemType" in model) && model.itemType === "blank"
+    // Fenestra : lettre de l'en-tête, transmise à la navigation alphabétique au clic
+    readonly property string letterText: ("display" in model) ? ("" + model.display) : ""
+
+    // Fenestra : marge intérieure de la tuile, BORNÉE — exactement la même borne que
+    // « root.tuilePad » dans MenuRepresentation.qml. Le thème « widgets/viewitem » peut
+    // avoir des marges de surlignage énormes qui poussaient l'icône et le libellé vers le
+    // bas et forçaient des cellules géantes. En les bornant ici aussi, l'icône et le
+    // libellé restent centrés dans la cellule (réduite) et ne sont jamais rognés.
+    readonly property int padTop: Math.min(highlightItemSvg.margins.top, Math.round(Kirigami.Units.gridUnit * 0.75))
+    readonly property int padLR: Math.min(highlightItemSvg.margins.left, Math.round(Kirigami.Units.gridUnit * 0.75))
 
     Kirigami.Icon {
         id: icon
         visible: !item.isLetterHeader && !item.isBlank
-        y: item.showLabel ? (2 * highlightItemSvg.margins.top) : undefined
+        // Fenestra : icône à « padTop » (au lieu de 2×padTop) pour libérer la hauteur
+        // nécessaire au nom sur 2 lignes — la tuile (cellSizeHeight) réserve exactement
+        // « padTop + icône + écart + nom + padTop ».
+        y: item.showLabel ? item.padTop : undefined
         anchors.horizontalCenter: isIndented ? undefined : parent.horizontalCenter
         anchors.left:             isIndented ? parent.left : undefined
         anchors.leftMargin:       isIndented ? indentOffset : 0
@@ -149,6 +162,22 @@ Item {
         color: "transparent" // juste un repère de largeur/position, pas de fond visible
     }
 
+    // Fenestra : l'en-tête de lettre est un index alphabétique cliquable (comme KDE) :
+    // il s'éclaire au survol pour montrer qu'on peut cliquer dessus.
+    // Le survol est détecté par la MouseArea principale d'ItemGridView (hoverArea),
+    // qui expose itemGrid.hoveredLetter. On compare à « item » pour savoir si CETTE
+    // tuile est celle sous le curseur.
+    readonly property bool isHoveredLetter: (typeof itemGrid !== "undefined") && (itemGrid.hoveredLetter === item)
+    Rectangle {
+        visible: item.isLetterHeader && item.isHoveredLetter
+        anchors.fill: parent
+        anchors.margins: 2
+        radius: Kirigami.Units.smallSpacing
+        color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#26ffffff" : "#80ffffff")
+        border.width: 1
+        border.color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#1affffff" : "#14000000")
+    }
+
     Text {
         visible: item.isLetterHeader
         anchors.left: letterBand.left
@@ -159,7 +188,9 @@ Item {
         font.family: Kirigami.Theme.defaultFont.family
         font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.1
         font.weight: Font.Normal
-        color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.7) : "#4A4A4A")
+        color: item.isHoveredLetter
+               ? Kirigami.Theme.textColor
+               : (Kirigami.Theme.textColor.hslLightness > 0.5 ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.7) : "#4A4A4A")
     }
 
     PlasmaComponents3.Label {
@@ -171,9 +202,9 @@ Item {
             top: icon.bottom
             topMargin: Kirigami.Units.smallSpacing
             left: parent.left
-            leftMargin: isIndented ? (indentOffset + icon.width + Kirigami.Units.smallSpacing) : highlightItemSvg.margins.left
+            leftMargin: isIndented ? (indentOffset + icon.width + Kirigami.Units.smallSpacing) : item.padLR
             right: parent.right
-            rightMargin: highlightItemSvg.margins.right
+            rightMargin: item.padLR
         }
 
         horizontalAlignment: isIndented ? Text.AlignLeft : Text.AlignHCenter

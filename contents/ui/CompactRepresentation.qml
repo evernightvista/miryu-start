@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /***************************************************************************
  *   Copyright (C) 2013-2014 by Eike Hein <hein@kde.org>                   *
@@ -40,6 +40,8 @@ Item {
     readonly property bool useCustomButtonImage: (Plasmoid.configuration.useCustomButtonImage
     && Plasmoid.configuration.customButtonImage.length != 0)
     property QtObject dashWindow: null
+    // Fenestra : composant du menu gardé en référence pour la création paresseuse
+    property var menuComponent: null
 
     // ── « Oreille » posée sur la barre (même principe que Panel Colorizer) ──
     // Le bouton Démarrer est dessiné DANS la fenêtre de la barre : on remonte
@@ -86,6 +88,7 @@ Item {
         if (!top || top === root) return;              // pas encore dans la barre
         if (panelEar && panelEar.parent === top) return; // déjà posée
         panelEar = root.oreillePartagee(top);
+        if (!panelEar) return;                          // création de l'oreille échouée
         panelEar.activeChanged.connect(function() {
             if (!panelEar || !panelEar.active) return;          // seulement à l'appui
             Qt.callLater(root.resetEar);                       // repart propre pour le clic suivant
@@ -130,6 +133,70 @@ Item {
         if (dashWindow && dashWindow.visible) dashWindow.visible = false;
     }
 
+    // ── Fenestra : création PARESSEUSE et SÛRE de la fenêtre du menu ──
+    // L'ancien code créait la fenêtre dans « Component.onCompleted » puis faisait
+    // « dashWindow.visible = !dashWindow.visible » sans garde dans les gestionnaires
+    // de clic : si la création échouait (ou si un clic arrivait avant la fin du
+    // chargement), « dashWindow » valait « null » et chaque clic levait
+    // « Cannot read property 'visible' of null » (CompactRepresentation.qml:170).
+    // La fenêtre est désormais créée à la demande, via le FICHIER (résolution de types
+    // fiable) plutôt que par une chaîne inline sans URL de base — cause probable du
+    // « null » : « Qt.createQmlObject(\"MenuRepresentation {}\") » pouvait ne pas
+    // résoudre le type local et renvoyer null. Tout accès reste gardé en plus.
+    function connectDashWindow() {
+        dashWindow.visibleChanged.connect(function() {
+            if (!dashWindow) return;
+            if (dashWindow.visible) {
+                root.ensureEar();
+                root.resetEar();        // oreille propre à chaque ouverture
+                root.relever(false);    // état de départ des fenêtres
+            }
+        });
+    }
+
+    function ensureDashWindow() {
+        if (dashWindow) return;
+
+        // 1) Chargement par FICHIER : résolution de type fiable, message d'erreur clair
+        if (!menuComponent)
+            menuComponent = Qt.createComponent("MenuRepresentation.qml");
+        if (menuComponent) {
+            if (menuComponent.status === Component.Ready) {
+                dashWindow = menuComponent.createObject(root);
+            } else if (menuComponent.status === Component.Loading) {
+                menuComponent.statusChanged.connect(function() {
+                    if (menuComponent.status === Component.Ready && !dashWindow) {
+                        dashWindow = menuComponent.createObject(root);
+                        if (dashWindow) root.connectDashWindow();
+                    }
+                });
+                return;
+            }
+        }
+
+        // 2) Repli : ancienne méthode inline (chaîne), si le fichier ne se résout pas
+        if (!dashWindow) {
+            try {
+                dashWindow = Qt.createQmlObject("MenuRepresentation {}", root);
+            } catch (e) {
+                console.warn("fenestra-menu11 : création du menu impossible :", e);
+                dashWindow = null;
+            }
+        }
+        if (!dashWindow) {
+            console.warn("fenestra-menu11 : MenuRepresentation indisponible",
+                         menuComponent ? menuComponent.errorString() : "");
+            return;
+        }
+        connectDashWindow();
+    }
+
+    function toggleDashWindow() {
+        ensureDashWindow();
+        if (!dashWindow) return;
+        dashWindow.visible = !dashWindow.visible;
+    }
+
     TaskManager.TasksModel {
         id: fenetres
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -146,37 +213,14 @@ Item {
     }
     Plasmoid.status: dashWindow && dashWindow.visible ? PlasmaCore.Types.RequiresAttentionStatus : PlasmaCore.Types.PassiveStatus
 
-    Rectangle {
-        id: activeShadow
-        anchors.fill: parent
-        radius: 12
-        color: "black"
-        opacity: (dashWindow && dashWindow.visible) ? 0.12 : 0.0
-    }
-
-    Rectangle {
-        id: activeBackground
-        anchors.fill: parent
-        anchors.leftMargin: -5
-        anchors.rightMargin: -5
-        anchors.topMargin: -4      // 1 px de moins en haut
-        anchors.bottomMargin: -4   // 1 px de moins en bas
-        radius: 5
-        color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#26ffffff" : "#80ffffff")
-        border.width: 1
-        border.color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#1affffff" : "#14000000")
-        opacity: ((dashWindow && dashWindow.visible) || mouseArea.containsMouse) ? 1.0 : 0.0
-
-        Behavior on opacity {
-            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
-        }
-    }
-
+    // Fenestra : le bouton n'a plus de cadre de surlignage maison (rectangle blanc qui
+    // ne suivait pas le thème et débordait du bouton). Il se contente de l'état actif
+    // du thème, comme le fait déjà Menu 11 Next : léger éclat de l'icône au survol.
     Kirigami.Icon {
         id: buttonIcon
         anchors.fill: parent
         source: useCustomButtonImage ? Plasmoid.configuration.customButtonImage : Plasmoid.configuration.icon
-        active: false
+        active: mouseArea.containsMouse
         smooth: true
         scale: mouseArea.pressed ? 0.85 : 1.0
 
@@ -190,22 +234,12 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: {
-            dashWindow.visible = !dashWindow.visible;
+            root.toggleDashWindow();
         }
     }
 
     Component.onCompleted: {
-        dashWindow = Qt.createQmlObject("MenuRepresentation {}", root);
-        // l'oreille est posée à la première ouverture du menu (la barre est prête)
-        dashWindow.visibleChanged.connect(function() {
-            if (dashWindow.visible) {
-                root.ensureEar();
-                root.resetEar();        // oreille propre à chaque ouverture
-                root.relever(false);    // état de départ des fenêtres
-            }
-        });
-        plasmoid.activated.connect(function() {
-            dashWindow.visible = !dashWindow.visible;
-        });
+        root.ensureDashWindow();          // création au démarrage (la barre est prête)
+        plasmoid.activated.connect(root.toggleDashWindow);
     }
 }

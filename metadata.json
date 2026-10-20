@@ -3,19 +3,42 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "naykkalak"
+                "Name": "KairikiFedora",
+                "Email": "13278297951@sina.cn"
             }
         ],
-        "BugReportUrl": "https://github.com/naykkalak/fenestra-menu-11/issues",
+        "BugReportUrl": "https://github.com/evernightvista/miryu-start/issues",
         "Category": "Application Launchers",
         "Description": "Windows 11 style start menu with a KDE Connect mobile panel",
+        "Description[de]": "Startmenü im Windows-11-Stil mit einem KDE-Connect-Mobilpanel",
+        "Description[es]": "Menú de inicio al estilo Windows 11 con un panel móvil de KDE Connect",
+        "Description[fr]": "Menu Démarrer style Windows 11 avec un panneau mobile KDE Connect",
+        "Description[it]": "Menu Start in stile Windows 11 con pannello mobile KDE Connect",
+        "Description[ja]": "Windows 11 スタイルのスタートメニュー + KDE Connect モバイルパネル",
+        "Description[nl]": "Windows 11-stijl startmenu met een KDE Connect mobiel paneel",
+        "Description[pl]": "Menu Start w stylu Windows 11 z mobilnym panelem KDE Connect",
+        "Description[pt]": "Menu Iniciar no estilo Windows 11 com um painel móvel do KDE Connect",
+        "Description[ru]": "Меню «Пуск» в стиле Windows 11 с мобильной панелью KDE Connect",
+        "Description[tr]": "Windows 11 stili başlat menüsü ve KDE Connect mobil paneli",
+        "Description[zh]": "Windows 11 风格的开始菜单 + KDE Connect 移动面板",
         "EnabledByDefault": true,
         "Icon": "start-here-kde",
-        "Id": "org.fenestra.menu11",
+        "Id": "org.miryugaming.start",
         "License": "GPL-3.0+",
-        "Name": "Fenestra Menu 11",
+        "Name": "Miryu Start",
         "Version": "1.0",
-        "Website": "https://github.com/naykkalak/fenestra-menu-11"
+        "Website": "https://github.com/evernightvista/miryu-start",
+        "Name[de]": "Miryu Start",
+        "Name[es]": "Miryu Inicio",
+        "Name[fr]": "Miryu Démarrer",
+        "Name[it]": "Miryu Avvio",
+        "Name[ja]": "Miryu スタート",
+        "Name[nl]": "Miryu Start",
+        "Name[pl]": "Miryu Start",
+        "Name[pt]": "Miryu Iniciar",
+        "Name[ru]": "Miryu Пуск",
+        "Name[tr]": "Miryu Başlat",
+        "Name[zh]": "Miryu 开始"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-Provides": [

@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /*
     SPDX-FileCopyrightText: 2015 Eike Hein <hein@kde.org>
@@ -37,6 +37,8 @@ Item {
     property bool isFolderItem: model.itemType === "folder"
     property bool isIndented:   model.indented === true
     property bool isLetterHeader: ("itemType" in model) && model.itemType === "letterHeader"
+    // Fenestra : lettre de l'en-tête, transmise à la navigation alphabétique au clic
+    readonly property string letterText: ("display" in model) ? ("" + model.display) : ""
 
     property bool hasActionList: {
         if (isFolderItem) return true;
@@ -122,6 +124,20 @@ Item {
         source: model.decoration
     }
 
+    // Fenestra : en-tête de lettre cliquable (index alphabétique, comme KDE) — s'éclaire au survol.
+    // Le survol est détecté par ItemGridView (hoverArea → itemGrid.hoveredLetter).
+    readonly property bool isHoveredLetter: (typeof itemGrid !== "undefined") && (itemGrid.hoveredLetter === item)
+
+    Rectangle {
+        visible: item.isLetterHeader && item.isHoveredLetter
+        anchors.fill: parent
+        anchors.margins: 2
+        radius: Kirigami.Units.smallSpacing
+        color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#26ffffff" : "#80ffffff")
+        border.width: 1
+        border.color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? "#1affffff" : "#14000000")
+    }
+
     PlasmaComponents3.Label {
         id: letterHeaderLabel
         visible: item.isLetterHeader
@@ -130,7 +146,9 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: model.display
         font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.1
-        color: (Kirigami.Theme.textColor.hslLightness > 0.5 ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.7) : "#4A4A4A")
+        color: item.isHoveredLetter
+               ? Kirigami.Theme.textColor
+               : (Kirigami.Theme.textColor.hslLightness > 0.5 ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.7) : "#4A4A4A")
     }
 
     // Text block centered alongside the icon — avoids vertical overflow at any DPI/font size

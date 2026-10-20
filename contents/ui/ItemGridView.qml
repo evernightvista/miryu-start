@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /*
     SPDX-FileCopyrightText: 2015 Eike Hein <hein@kde.org>
@@ -29,8 +29,12 @@ FocusScope {
 
     signal itemActivated(int index, string actionId, string argument)
     signal folderEditRequested(int index)
+    // Fenestra : clic sur un en-tête de lettre (index alphabétique cliquable, comme KDE)
+    signal letterActivated(string letter)
 
     property bool _folderEditPressed: false
+    property bool _letterHovered: false
+    property Item hoveredLetter: null
     property bool dragEnabled: true
     property bool dropEnabled: false
     property bool showLabels: true
@@ -449,6 +453,9 @@ FocusScope {
                                                     hoverArea.lastX = -1;
                                                     hoverArea.lastY = -1;
                                                     hoverArea.pressedItem = null;
+                                                    hoverArea.pressedLetter = null;
+                                                    itemGrid._letterHovered = false;
+                                                    itemGrid.hoveredLetter = null;
                                                     hoverArea.hoverEnabled = true;
                                                 }
                                             }
@@ -457,7 +464,7 @@ FocusScope {
 
         MouseArea {
             id: hoverArea
-            cursorShape: gridView.currentIndex !== -1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+            cursorShape: Qt.ArrowCursor
     
             //anchors.fill: parent
             width:  itemGrid.width - Kirigami.Units.gridUnit
@@ -468,6 +475,8 @@ FocusScope {
             property int lastX: -1
             property int lastY: -1
             property Item pressedItem: null
+            // Fenestra : en-tête de lettre sous le curseur au moment de l'appui
+            property Item pressedLetter: null
 
             acceptedButtons: Qt.LeftButton | Qt.RightButton
 
@@ -488,7 +497,23 @@ FocusScope {
                 var cPos = mapToItem(gridView.contentItem, x, y);
                 var item = gridView.itemAt(cPos.x, cPos.y);
 
-                if (!item || item.isLetterHeader === true || item.isBlank === true) {
+                if (item && item.isLetterHeader === true) {
+                    // Fenestra : en-tête de lettre = index alphabétique cliquable (comme
+                    // KDE Kickoff). On le retient pour émettre « letterActivated » au
+                    // relâchement ; il ne devient jamais l'élément courant (pas d'action).
+                    itemGrid._letterHovered = true;
+                    itemGrid.hoveredLetter = item;
+                    pressedLetter = item;
+                    pressedItem = null;
+                    gridView.currentIndex = -1;
+                    return item;
+                }
+
+                itemGrid._letterHovered = false;
+                itemGrid.hoveredLetter = null;
+                pressedLetter = null;
+
+                if (!item || item.isBlank === true) {
                     gridView.currentIndex = -1;
                     pressedItem = null;
                 } else {
@@ -500,6 +525,12 @@ FocusScope {
                 return item;
             }
 
+            onExited: {
+                itemGrid._letterHovered = false;
+                itemGrid.hoveredLetter = null;
+                pressedLetter = null;
+            }
+
             onPressed: mouse => {
                            mouse.accepted = true;
 
@@ -509,7 +540,9 @@ FocusScope {
                            pressY = mouse.y;
 
                            if (mouse.button === Qt.RightButton) {
-                               if (gridView.currentItem) {
+                               if (pressedLetter) {
+                                   // Fenestra : un en-tête de lettre n'a pas de menu contextuel
+                               } else if (gridView.currentItem) {
                                    if (gridView.currentItem.hasActionList) {
                                        var mapped = mapToItem(gridView.currentItem, mouse.x, mouse.y);
                                        gridView.currentItem.openActionMenu(mapped.x, mapped.y);
@@ -548,6 +581,15 @@ FocusScope {
                             }
 
                             if (!dragHelper.dragging) {
+                                if (pressedLetter) {
+                                    // Fenestra : navigation alphabétique — le clic sur une
+                                    // lettre fait défiler la page jusqu'à sa section.
+                                    itemGrid.letterActivated(pressedLetter.letterText);
+                                    pressX = pressY = -1;
+                                    pressedLetter = null;
+                                    pressedItem = null;
+                                    return;
+                                }
                                 if (pressedItem) {
                                     if (pressedItem.favoriteId && pressedItem.favoriteId !== "" &&
                                         typeof rootItem !== "undefined") {

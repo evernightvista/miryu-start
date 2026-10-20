@@ -1,10 +1,10 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
+ * Miryu Start — https://github.com/evernightvista/miryu-start
  * SPDX-FileCopyrightText: 2026 naykkalak
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 /*
- * Fenestra Menu 11 — volet « Appareil mobile » (KDE Connect), façon Windows 11.
+ * Miryu Start — volet « Appareil mobile » (KDE Connect), façon Windows 11.
  * Fenêtre séparée collée au bord droit du menu (ou gauche si pas la place),
  * même hauteur que le menu. Ouverte/fermée par le bouton à droite de la recherche.
  *
@@ -36,6 +36,10 @@ PlasmaCore.Dialog {
     flags: Qt.WindowStaysOnTopHint
     // posé sur le bord bas, comme le menu : pas de bordure ni d'arrondi en bas
     location: PlasmaCore.Types.BottomEdge
+    // Fenestra : floating = 0 supprime la bordure du côté du panneau (bas), comme
+    // removeBorderStrategy: AtPanelEdges dans PopupPlasmaWindow. Le volet est collé
+    // à la barre des tâches sans marge de cadre visible.
+    floating: 0
     hideOnWindowDeactivate: false
     visible: false
 
@@ -52,6 +56,11 @@ PlasmaCore.Dialog {
     property string toast: ""
     readonly property bool online: dev !== null && dev.reachable
     readonly property var dev: devices.length > 0 ? devices[Math.min(current, devices.length - 1)] : null
+    // Fenestra : noms des appareils mis en cache : la propriété ne change que si
+    // « devices » change. Utiliser directement « devices.map(...) » comme modèle
+    // recréait un tableau à chaque évaluation et faisait boucler implicitWidth
+    // du ComboBox de sélection d'appareil.
+    readonly property var deviceNames: devices.map(function(d) { return d.name; })
     readonly property bool hasPhoto: dev !== null && dev.plugins.indexOf("kdeconnect_photo") >= 0
     readonly property bool hasMedia: online && dev.mTitle !== ""
     readonly property bool hasNetwork: online && dev.netType !== "" && dev.netStrength >= 0
@@ -98,7 +107,40 @@ PlasmaCore.Dialog {
         }
     }
 
-    onVisibleChanged: if (visible) Qt.callLater(reposition)
+    onVisibleChanged: {
+        if (visible) {
+            // Fenestra : largeur de la fenêtre donnée à l'ouverture — comme pour le menu
+            // principal (MenuRepresentation.qml). PlasmaCore.Dialog.width = total fenêtre
+            // = contentItem + marges du cadre. On le fixe explicitement pour garantir des
+            // coordonnées globales correctes dès le premier affichage (les 3 ToolTip du
+            // volet — Refresh / Dismiss notification / More options — en dépendent).
+            // Les sous-propriétés de margins (left/right) peuvent être undefined au tout
+            // premier affichage : on les normalise à 0 pour éviter width = NaN →
+            // « trying to show an empty dialog ».
+            var ml = isFinite(margins.left) ? margins.left : 0;
+            var mr = isFinite(margins.right) ? margins.right : 0;
+            width = Math.round(mainItem.largeurVoulue + ml + mr);
+            // Fenestra : re-correction de la largeur après chargement des marges du
+            // cadre (une seule fois). Stabilise la géométrie pour les ToolTip du volet.
+            ajustementLargeurVolet.restart();
+            Qt.callLater(reposition);
+            // repositionnements différés : le temps que les marges de cadre soient prêtes
+            repositionAjuste.restart();
+            repositionAjuste2.restart();
+        }
+    }
+
+    // Fenestra : PlasmaCore.Dialog.margins est une propriété CONSTANT (pas de signal
+    // marginsChanged). Au premier affichage, les sous-propriétés (left/right) peuvent
+    // être undefined (chargement asynchrone du FrameSvg). On applique la largeur corrigée
+    // UNE SEULE FOIS après un court délai (ajustementLargeurVolet, défini dans mainItem).
+    // On n'utilise PAS de Binding on width : une liaison continue ferait vibrer la
+    // géométrie de la fenêtre et décalerait les ToolTip du volet (Refresh / Dismiss
+    // notification / More options).
+
+    // Fenestra : la largeur change (après chargement des marges du cadre) -> on replace
+    // le volet. heightChanged fait déjà repositionner via le Connections ci-dessous.
+    onWidthChanged: { if (visible) Qt.callLater(reposition); }
 
     // Fermeture native du menu (hideOnWindowDeactivate) :
     // coupée seulement quand la souris est sur le volet (pour pouvoir cliquer dedans),
@@ -127,8 +169,14 @@ PlasmaCore.Dialog {
 
     function reposition() {
         if (!menuWindow) return;
+        // Fenestra : on ne TOUCHE PAS à la hauteur — le Binding sur mainItem.height
+        // ci-dessus s'en charge parfaitement (pas de dérive, pas de problème de
+        // timing). On ne fait que positionner le volet : alignement du BAS sur
+        // le BAS du menu (donc sur la barre des tâches). C'est l'alignement LE
+        // PLUS ROBUSTE : même si heights diffèrent un peu (asynchrone des marges),
+        // les bords du BAS se touchent PARFAITEMENT — pas de chevauchement, pas
+        // d'écart. Quand heights sont égaux, y = menuWindow.y automatiquement.
         var gap = Kirigami.Units.smallSpacing * 2;
-        // Fenestra : écran du menu (au 1er clic, le volet n'est pas encore sur le bon écran)
         var mi = menuWindow.mainItem;
         var ecran = (mi && mi.Screen.width > 0) ? mi.Screen : content.Screen;
         var ecranDroite = ecran.virtualX + ecran.width;
@@ -137,7 +185,7 @@ PlasmaCore.Dialog {
         if (nx + width > ecranDroite)
             nx = Math.max(ecranGauche, menuWindow.x - width - gap);
         x = nx;
-        y = menuWindow.y;
+        y = menuWindow.y + menuWindow.height - height;
     }
 
 
@@ -679,14 +727,56 @@ PlasmaCore.Dialog {
     // ── Contenu du volet ────────────────────────────────────────────────────
     mainItem: Item {
         id: content
-        width: Kirigami.Units.gridUnit * 16
-        height: panel.menuWindow
-                ? Math.max(Kirigami.Units.gridUnit * 12,
-                           panel.menuWindow.height - panel.margins.top - panel.margins.bottom)
-                : Kirigami.Units.gridUnit * 20
+        // Fenestra : largeur de contenu fixe du volet. Stockée dans une propriété
+        // pour que le Binding sur panel.width (plus bas) utilise une valeur stable
+        // plutôt que mainItem.width, que PlasmaQuick::Dialog peut réécrire depuis
+        // Dialog.width (risque de boucle / largeur instable -> ToolTip mal placés).
+        readonly property int largeurVoulue: Kirigami.Units.gridUnit * 16
+        width: largeurVoulue
+        // Fenestra : la hauteur du volet est calquée sur la hauteur de FENÊTRE du menu
+        // (comme l'amont). « menuWindow.height » est la hauteur totale de la fenêtre du
+        // menu (marges du cadre INCLUSES). On retranche les marges du cadre DU volet pour
+        // obtenir la hauteur de contenu du volet : le volet a alors exactement la même
+        // hauteur de fenêtre que le menu. Comme le menu est borné par l'écran utile
+        // (hauteurContenu dans MenuRepresentation.qml), le volet est lui aussi borné et
+        // ne sera jamais rogné par la barre des tâches, même en basse résolution.
+        // Les sous-propriétés de margins peuvent être undefined au premier affichage :
+        // on les normalise à 0 (évite height = NaN → empty dialog).
+        // Fenestra : Binding RÉACTIF sur la hauteur — QML garantit que
+        // mainItem.height suit PARFAITEMENT menuWindow.height à chaque changement,
+        // sans aucune dérive (contrairement à un set impératif dans reposition).
+        // PlasmaCore.Dialog.height inclut TOUJOURS pmTop + pmBottom, donc on
+        // soustrait LES DEUX pour obtenir mainItem, puis le Dialog réajoute les
+        // deux marges → panel.height = menuWindow.height exactement.
+        height: {
+            if (!panel.menuWindow) return Kirigami.Units.gridUnit * 20;
+            var pm = panel.margins || { top: 0, bottom: 0 };
+            var pmTop = isFinite(pm.top) ? pm.top : 0;
+            var pmBottom = isFinite(pm.bottom) ? pm.bottom : 0;
+            return Math.max(Kirigami.Units.gridUnit * 12,
+                            panel.menuWindow.height - pmTop - pmBottom);
+        }
 
         focus: true
         Keys.onEscapePressed: panel.close()
+
+        // Fenestra : re-correction de la largeur après chargement des marges du cadre
+        // (une seule fois). Stabilise la géométrie pour les ToolTip du volet (pas de
+        // Binding on width continu qui ferait vibrer la fenêtre).
+        Timer {
+            id: ajustementLargeurVolet
+            interval: 30
+            repeat: false
+            onTriggered: {
+                if (!panel.visible) return;
+                var ml = isFinite(panel.margins.left) ? panel.margins.left : 0;
+                var mr = isFinite(panel.margins.right) ? panel.margins.right : 0;
+                var w = Math.round(content.largeurVoulue + ml + mr);
+                if (w !== panel.width) {
+                    panel.width = w;
+                }
+            }
+        }
 
         // objets non visuels (un Dialog n'accepte que son mainItem comme enfant)
         // le menu se ferme -> le volet aussi ; le menu bouge -> on suit
@@ -715,6 +805,25 @@ PlasmaCore.Dialog {
             function onXChanged() { if (panel.visible) Qt.callLater(panel.reposition); }
             function onYChanged() { if (panel.visible) Qt.callLater(panel.reposition); }
             function onHeightChanged() { if (panel.visible) Qt.callLater(panel.reposition); }
+            // Note : pas de onMarginsChanged — PlasmaCore.Dialog.margins est CONSTANT
+            // (pas de signal). Les changements de marges du menu se répercutent sur sa
+            // height/width, déjà écoutés ci-dessus.
+        }
+
+        // Fenestra : filet de sécurité — on repositionne le volet deux fois peu après son
+        // ouverture, le temps que les marges de cadre des deux dialogues soient calculées.
+        // Sans ça, le premier affichage peut laisser un écart entre le volet et la barre.
+        Timer {
+            id: repositionAjuste
+            interval: 60
+            repeat: false
+            onTriggered: { if (panel.visible) panel.reposition(); }
+        }
+        Timer {
+            id: repositionAjuste2
+            interval: 220
+            repeat: false
+            onTriggered: { if (panel.visible) panel.reposition(); }
         }
 
         // Fenestra : délai de grâce à l'ouverture : menu et volet apparaissent ensemble,
@@ -975,7 +1084,12 @@ PlasmaCore.Dialog {
         }
 
         // ----- Page : appareil appairé -----
-        ColumnLayout {
+        // Fenestra : le contenu est enveloppé dans un ScrollView. La hauteur du volet
+        // est calquée sur celle du menu (elle-même bornée par l'écran utile) ; en basse
+        // résolution, le contenu (illustration + infos appareil + tuiles d'action +
+        // lecteur multimédia + notifications) peut dépasser la hauteur disponible. Sans
+        // ScrollView, les éléments les plus bas étaient rognés par le pied du volet.
+        PC3.ScrollView {
             anchors.top: parent.top
             anchors.topMargin: Kirigami.Units.gridUnit
             anchors.bottom: piedVolet.top
@@ -983,8 +1097,12 @@ PlasmaCore.Dialog {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: -panel.recentrageVolet   // Fenestra : recentrage du volet
             width: parent.width - Kirigami.Units.gridUnit * 2
-            spacing: Kirigami.Units.smallSpacing
             visible: panel.dev !== null && panel.page === "auto"
+            clip: true
+
+            ColumnLayout {
+                width: parent.width
+                spacing: Kirigami.Units.smallSpacing
 
             Illustration {
                 Layout.alignment: Qt.AlignHCenter
@@ -995,7 +1113,7 @@ PlasmaCore.Dialog {
             PC3.ComboBox {
                 Layout.fillWidth: true
                 visible: panel.devices.length > 1
-                model: panel.devices.map(d => d.name)
+                model: panel.deviceNames
                 currentIndex: panel.current
                 onActivated: idx => panel.current = idx
             }
@@ -1467,12 +1585,12 @@ PlasmaCore.Dialog {
                     color: Kirigami.Theme.textColor
                 }
             }
-            // les 3 plus récentes au plus (le volet est un complément), et seulement
-            // celles qui tiennent entièrement dans la place restante (carte musique…)
+            // les 3 plus récentes au plus (le volet est un complément). Le contenu défile
+            // maintenant (ScrollView parent) : plus besoin de masquer les notifications
+            // qui ne tiennent pas, elles sont toutes accessibles par défilement.
             Item {
                 id: notifZone
                 Layout.fillWidth: true
-                Layout.fillHeight: true
                 visible: panel.notifs.length > 0
                 clip: true
                 Column {
@@ -1486,10 +1604,10 @@ PlasmaCore.Dialog {
                     id: nt
                     required property var modelData
                     width: notifList.width
-                    // masquée si elle ne tient pas entièrement (pas de notification coupée)
-                    readonly property bool tient: y + height <= notifZone.height
-                    opacity: tient ? 1 : 0
-                    enabled: tient
+                    // le contenu défile désormais (ScrollView) : toutes les notifications
+                    // sont affichées, plus besoin de masquer celles qui ne tiennent pas.
+                    opacity: 1
+                    enabled: true
                     implicitHeight: ntCol.implicitHeight + Kirigami.Units.smallSpacing * 2
                     readonly property bool enReponse: panel.notifReplying === nt.modelData.id
 
@@ -1590,11 +1708,12 @@ PlasmaCore.Dialog {
                 }
             }
 
-            // sans notification : l'espace libre reste en bas
+            // sans notification : un peu d'espace en bas du contenu défilable
             Item {
-                Layout.fillHeight: true
                 visible: panel.notifs.length === 0
+                height: Kirigami.Units.gridUnit
             }
+        }
         }
 
         // ----- Chargement -----

@@ -1,8 +1,8 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Modified by naykkalak (2026) for Fenestra Menu 11, a fork of Menu 11 Next by Eisteed.
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Modified by naykkalak (2026) for Miryu Start, a fork of Menu 11 Next by Eisteed.
  * The original notice below is kept. This file is GPL-2.0-or-later;
- * Fenestra Menu 11 as a whole is distributed under GPL-3.0-or-later.
+ * Miryu Start as a whole is distributed under GPL-3.0-or-later.
  */
 /***************************************************************************
  *   Copyright (C) 2014 by Eike Hein <hein@kde.org>                        *
@@ -49,7 +49,7 @@ import org.kde.kcmutils as KCM
 
 KCM.SimpleKCM {
     id: configGeneral
-
+    title: i18n("General")
 
     property string cfg_icon: plasmoid.configuration.icon
     property bool cfg_useCustomButtonImage: plasmoid.configuration.useCustomButtonImage
@@ -61,8 +61,8 @@ KCM.SimpleKCM {
 
     property alias cfg_appsIconSize: appsIconSize.currentIndex
     property alias cfg_docsIconSize: docsIconSize.currentIndex
-    property alias cfg_displayPosition: displayPosition.currentIndex
     property alias cfg_kdeConnectMemoriser: kdeConnectMemoriserCb.checked   // Fenestra : option du volet
+    property alias cfg_kdeConnectShow: kdeConnectShowCb.checked              // Fenestra : affiche le bouton à droite de la recherche
     property alias cfg_showRecentDocs: showRecentDocsCb.checked
     property alias cfg_showRecentApps: showRecentAppsCb.checked
     property alias cfg_enableShellRunner: enableShellRunnerCb.checked
@@ -126,7 +126,7 @@ KCM.SimpleKCM {
                 id: iconDialog
 
                 function setCustomButtonImage(image) {
-                    configGeneral.cfg_customButtonImage = image || configGeneral.cfg_icon || "start-here-kde-symbolic"
+                    configGeneral.cfg_customButtonImage = image || configGeneral.cfg_icon || "start-here"
                     configGeneral.cfg_useCustomButtonImage = true;
                 }
 
@@ -166,7 +166,7 @@ KCM.SimpleKCM {
                     text: i18nc("@item:inmenu Reset icon to default", "Clear Icon")
                     icon.name: "edit-clear"
                     onClicked: {
-                        configGeneral.cfg_icon = "start-here-kde-symbolic"
+                        configGeneral.cfg_icon = "start-here"
                         configGeneral.cfg_useCustomButtonImage = false
                     }
                 }
@@ -189,19 +189,6 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Docs icon size:")
             Layout.fillWidth: true
             model: [i18n("Small"),i18n("Medium"),i18n("Large"), i18n("Huge")]
-        }
-
-
-        ComboBox {
-
-            Kirigami.FormData.label: i18n("Menu position")
-            id: displayPosition
-            model: [
-                i18n("Default"),
-                i18n("Center"),
-                i18n("Center bottom"),
-            ]
-            //onActivated: cfg_displayPosition = currentIndex
         }
 
 
@@ -249,6 +236,11 @@ KCM.SimpleKCM {
             id: kdeConnectMemoriserCb
             Kirigami.FormData.label: i18n("Mobile panel:")
             text: i18n("Keep the mobile panel open between menu openings")
+        }
+
+        CheckBox {
+            id: kdeConnectShowCb
+            text: i18n("Show KDE Connect button next to search")
         }
 
         Item {

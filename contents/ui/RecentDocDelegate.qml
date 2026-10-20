@@ -1,6 +1,6 @@
 /*
- * Fenestra Menu 11 — https://github.com/naykkalak/fenestra-menu-11
- * Part of Fenestra Menu 11 (naykkalak, 2026), a fork of Menu 11 Next by Eisteed,
+ * Miryu Start — https://github.com/evernightvista/miryu-start
+ * Part of Miryu Start (naykkalak, 2026), a fork of Menu 11 Next by Eisteed,
  * itself based on Menu 11 / Ditto Menu by adhe (GPL-2.0-or-later).
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -47,7 +47,16 @@ Item {
     // texte affiché sous le nom : « date  ·  dossier » (la date est lue par MenuRepresentation, cf. docDates)
     property string dateText: (typeof rootItem !== "undefined" && rootItem.docDates)
                               ? (rootItem.docDates[String(model.url)] || "") : ""
-    property string folderText: (model.description !== undefined && model.description !== null) ? String(model.description) : ""
+    property string folderText: {
+        var desc = (model.description !== undefined && model.description !== null) ? String(model.description) : "";
+        // Supprime l'étiquette de volume préfixée (ex. « e /mnt/hgfs/... » → « /mnt/hgfs/... »).
+        // Le nom de volume est tout ce qui précède le premier « / » (sans autre slash).
+        var idx = desc.indexOf("/");
+        if (idx > 0 && desc.substring(0, idx).indexOf("/") === -1) {
+            return desc.substring(idx);
+        }
+        return desc;
+    }
     property string subtitle: (dateText !== "" && folderText !== "") ? (dateText + "  ·  " + folderText)
                                                                     : (dateText !== "" ? dateText : folderText)
     // chemin complet pour l'infobulle
@@ -57,7 +66,10 @@ Item {
     property bool wide: (typeof itemGrid !== "undefined") && itemGrid.recentDocsWide === true
     property real epoch: (typeof rootItem !== "undefined" && rootItem.docEpochs) ? (rootItem.docEpochs[String(model.url)] || 0) : 0
     property string timeText: epoch > 0 ? rootItem.formatRecentTime(epoch) : ""
-    property string shownSubtitle: wide ? fullPath : subtitle
+    // Fenestra : dans la section « Recommandations » (mode non large), on n'affiche que la
+    // date, pas le chemin du dossier. Le chemin complet reste disponible dans l'infobulle
+    // (survol de la souris). En mode « page complète », le chemin s'affiche sous le nom.
+    property string shownSubtitle: wide ? fullPath : dateText
 
     function openActionMenu(x, y) {
         var gm = GridView.view.model;
