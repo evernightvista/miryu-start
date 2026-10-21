@@ -32,6 +32,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PC3
 
 import org.kde.plasma.private.kicker 0.1 as Kicker
+import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.ksvg as KSvg
 
@@ -77,6 +78,63 @@ PlasmoidItem {
         }
     }
 
+    // Fix : lors de la première session d'un nouvel utilisateur, lire les favoris
+    // définis par le thème global Plasma (org.kde.plasma.desktop-layout.js →
+    // kickoff.writeConfig("favorites", ...)) au lieu des favoris codés en dur
+    // de favoriteApps. Deux sources sont prises en charge, par priorité :
+    //   1. la clé de configuration « favorites » de CE mini-programme (écrite
+    //      par le script de disposition lorsque le layout cible ce lanceur) ;
+    //   2. le fichier de disposition du thème global courant, analysé pour
+    //      extraire le dernier kickoff.writeConfig("favorites", [...]) trouvé.
+    function parseLayoutFavorites(text) {
+        const re = /writeConfig\(\s*["']favorites["']\s*,\s*\[([^\]]*)\]/g;
+        let match;
+        let result = [];
+        while ((match = re.exec(text)) !== null) {
+            // La dernière occurrence écrase les précédentes (comportement du
+            // script de disposition : writeConfig écrase la valeur).
+            result = match[1].split(",")
+                .map(item => item.trim().replace(/^["']+|["']+$/g, ""))
+                .filter(item => item.length > 0);
+        }
+        return result;
+    }
+
+    function portFavorites(favorites) {
+        if (favorites && favorites.length > 0 && favoritesModel.count < 1) {
+            favoritesModel.portOldFavorites(favorites);
+        }
+    }
+
+    P5Support.DataSource {
+        id: layoutFavoritesLoader
+
+        engine: "executable"
+        property bool requestPending: false
+
+        function requestLayoutFavorites() {
+            if (requestPending)
+                return;
+            requestPending = true;
+            connectSource("miryu-read-layout-favorites");
+        }
+
+        onNewData: (source, data) => {
+            disconnectSource(source);
+            requestPending = false;
+            const cfgFavorites = Plasmoid.configuration.favorites;
+            if (cfgFavorites && cfgFavorites.length > 0) {
+                // Le script de disposition a déjà écrit la clé ici : ne rien
+                // écraser avec le contenu du fichier.
+                portFavorites(cfgFavorites);
+                return;
+            }
+            const favorites = parseLayoutFavorites(String(data[source] || ""));
+            if (favorites.length > 0)
+                portFavorites(favorites);
+        }
+    }
+
     Kicker.RootModel {
         id: rootModel
 
@@ -110,7 +168,16 @@ PlasmoidItem {
 
             if (!Plasmoid.configuration.favoritesPortedToKAstats) {
                 if (favoritesModel.count < 1) {
-                    favoritesModel.portOldFavorites(Plasmoid.configuration.favoriteApps);
+                    const cfgFavorites = Plasmoid.configuration.favorites;
+                    if (cfgFavorites && cfgFavorites.length > 0) {
+                        // Favoris posés par le script de disposition du thème global.
+                        favoritesModel.portOldFavorites(cfgFavorites);
+                    } else {
+                        // Repli : favoris par défaut, puis lecture asynchrone du
+                        // fichier de disposition du thème global courant.
+                        favoritesModel.portOldFavorites(Plasmoid.configuration.favoriteApps);
+                        layoutFavoritesLoader.requestLayoutFavorites();
+                    }
                 }
                 Plasmoid.configuration.favoritesPortedToKAstats = true;
             }
@@ -155,6 +222,14 @@ PlasmoidItem {
 
         function onFavoriteAppsChanged () {
             globalFavorites.favorites = Plasmoid.configuration.favoriteApps;
+        }
+
+        function onFavoritesChanged() {
+            // Le script de disposition du thème global a écrit « favorites » :
+            // appliquer immédiatement ces favoris (session en cours).
+            const favorites = Plasmoid.configuration.favorites;
+            if (favorites && favorites.length > 0)
+                globalFavorites.favorites = favorites;
         }
 
         function onFavoriteSystemActionsChanged () {

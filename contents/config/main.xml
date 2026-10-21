@@ -44,6 +44,13 @@
     <default>4</default>
     </entry>
 
+    <!-- Favoris écrits par les scripts de disposition (org.kde.plasma.desktop-layout.js)
+         via kickoff.writeConfig("favorites", ...). Lus en priorité au premier
+         démarrage d'un nouvel utilisateur, avant le repli sur favoriteApps. -->
+    <entry name="favorites" type="StringList">
+      <label>List of favorites defined by the Plasma global theme layout script.</label>
+      <default></default>
+    </entry>
     <entry name="favoriteApps" type="StringList">
       <default>preferred://browser,kontact.desktop,systemsettings.desktop,org.kde.dolphin.desktop,ktp-contactlist.desktop,org.kde.kate.desktop</default>
     </entry>
