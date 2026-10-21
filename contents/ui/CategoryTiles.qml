@@ -16,7 +16,6 @@ import QtQuick
 
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.components as PC3   // infobulle compacte (PC3.ToolTip)
 import "code/tools.js" as Tools
 
 Item {
@@ -37,6 +36,29 @@ Item {
     readonly property real labelHeight: Math.round(Kirigami.Units.gridUnit * 1.6)
 
     signal openCategory(int row, string title, real sceneX, real sceneY)
+
+    // ── infobulle partagée ────────────────────────────────────────────────
+    // Fenestra : les tuiles vivent dans la page défilante ; un ToolTip ancré
+    // dans ce contenu était rendu à une position erronée. On délègue donc
+    // l'affichage à l'ancre « tileTipAnchor » posée au niveau de la fenêtre
+    // (cf. MenuRepresentation.qml), positionnée à la main depuis la cellule.
+    property var tipSource: null
+
+    function showTip(item, text) {
+        tipSource = item;
+        if (typeof rootItem !== "undefined" && rootItem.showTileTip)
+            rootItem.showTileTip(item, text);
+    }
+
+    function hideTip() {
+        var s = tipSource;
+        tipSource = null;
+        if (typeof rootItem !== "undefined" && rootItem.hideTileTip)
+            rootItem.hideTileTip(s);
+    }
+
+    onFlyoutOpenChanged: if (flyoutOpen) hideTip();
+    onVisibleChanged: if (!visible) hideTip();
 
     implicitHeight: flow.implicitHeight
     height: implicitHeight
@@ -235,14 +257,15 @@ Item {
                                     }
                                 }
 
-                                // infobulle compacte (PC3.ToolTip), comme « Marche/Arrêt »
-                                Item {
-                                    anchors.fill: parent
-                                    HoverHandler { id: cellTipHover }
-                                    PC3.ToolTip.text: cell.app ? cell.app.name : ""
-                                    PC3.ToolTip.visible: cellTipHover.hovered && cell.app !== null
-                                                         && !(typeof rootItem !== "undefined" && rootItem.scrolling)
-                                    PC3.ToolTip.delay: 400
+                                // infobulle compacte : déléguée à l'ancre partagée au niveau
+                                // de la fenêtre (tileTipAnchor, cf. MenuRepresentation.qml) —
+                                // un ToolTip ancré ici, dans la page défilante, était décalé.
+                                readonly property bool tipHover: (cellHover.hovered || cellMouse.containsMouse)
+                                                                 && cell.app !== null
+                                                                 && !(typeof rootItem !== "undefined" && rootItem.scrolling)
+                                onTipHoverChanged: {
+                                    if (tipHover) tiles.showTip(cell, cell.app ? cell.app.name : "");
+                                    else if (tiles.tipSource === cell) tiles.hideTip();
                                 }
                             }
                         }

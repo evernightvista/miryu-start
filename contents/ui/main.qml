@@ -64,6 +64,13 @@ PlasmoidItem {
 
     Plasmoid.icon: Plasmoid.configuration.useCustomButtonImage ? Plasmoid.configuration.customButtonImage : Plasmoid.configuration.icon
 
+    // Infobulle « Démarrer » au survol du bouton de la barre des tâches : on passe par
+    // l'infobulle NATIVE de Plasma (positionnée par le shell juste au-dessus du bouton),
+    // et non par un PC3.ToolTip interne, qui se plaçait au mauvais endroit.
+    // Plasma 6 : toolTipMainText est une propriété DIRECTE du PlasmoidItem racine
+    // (plus de préfixe « Plasmoid. », qui visait l'ancien objet attaché de Plasma 5).
+    toolTipMainText: i18n("Start")
+
     onSystemFavoritesChanged: {
         if (systemFavorites) {
             systemFavorites.favorites = Plasmoid.configuration.favoriteSystemActions;

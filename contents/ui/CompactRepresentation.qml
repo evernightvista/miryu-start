@@ -22,7 +22,7 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA .        *
  ***************************************************************************/
-import QtQuick 2.0
+import QtQuick 2.15
 import QtQuick.Layouts 1.1
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core 2.0 as PlasmaCore
@@ -220,7 +220,7 @@ Item {
         id: buttonIcon
         anchors.fill: parent
         source: useCustomButtonImage ? Plasmoid.configuration.customButtonImage : Plasmoid.configuration.icon
-        active: mouseArea.containsMouse
+        active: buttonHover.hovered
         smooth: true
         scale: mouseArea.pressed ? 0.85 : 1.0
 
@@ -229,13 +229,31 @@ Item {
         }
     }
 
+    // Fenestra : HoverHandler plutôt que « hoverEnabled » sur la MouseArea — cette
+    // dernière intercepte les événements de survol, ce qui empêchait le shell
+    // d'afficher l'infobulle native du bouton (« Démarrer », cf. toolTipMainText
+    // dans main.qml). HoverHandler observe le survol sans intercepter l'événement.
+    HoverHandler {
+        id: buttonHover
+    }
+
     MouseArea {
         id: mouseArea
         anchors.fill: parent
-        hoverEnabled: true
         onClicked: {
             root.toggleDashWindow();
         }
+    }
+
+    // Fenestra : infobulle « Démarrer » au survol du bouton, style Plasma d'origine —
+    // même composant que Animated-plasma-task (taskmanager-skyler/qml/Task.qml) :
+    // PlasmaCore.ToolTipArea affiche l'infobulle NATIVE du shell au-dessus du bouton.
+    // Elle n'intercepte ni les clics ni les événements de survol. Masquée pendant que
+    // le menu est ouvert.
+    PlasmaCore.ToolTipArea {
+        anchors.fill: parent
+        mainText: i18n("Start")
+        active: !(root.dashWindow && root.dashWindow.visible)
     }
 
     Component.onCompleted: {

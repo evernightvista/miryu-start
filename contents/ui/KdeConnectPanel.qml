@@ -108,6 +108,9 @@ PlasmaCore.Dialog {
     }
 
     onVisibleChanged: {
+        // Fenestra : le volet se ferme -> l'infobulle partagée ne doit pas rester
+        // affichée par-dessus le menu.
+        if (!visible && content) content.hidePanelTip();
         if (visible) {
             // Fenestra : largeur de la fenêtre donnée à l'ouverture — comme pour le menu
             // principal (MenuRepresentation.qml). PlasmaCore.Dialog.width = total fenêtre
@@ -826,6 +829,108 @@ PlasmaCore.Dialog {
             onTriggered: { if (panel.visible) panel.reposition(); }
         }
 
+        // ── Infobulle partagée du volet ──────────────────────────────────────
+        // Fenestra : les PC3.ToolTip (Popup) attachés aux boutons de CE volet — un
+        // PlasmaCore.Dialog, tout comme le menu — étaient rendus décalés (positionnés
+        // en haut de la fenêtre). On dessine donc l'infobulle SOI-MÊME au niveau du
+        // volet, position calculée avec mapToItem : aucun Popup, aucun décalage.
+        // Même animation que le menu (apparition Win11 : fondu + 4 px, 200 ms).
+        function showPanelTip(item, text) {
+            if (!item || !text || text.length === 0) return;
+            panelTipAnchor.source = item;
+            panelTipAnchor.text = text;
+            var w = Math.ceil(panelTipLabel.implicitWidth) + Kirigami.Units.gridUnit;
+            var h = Math.ceil(panelTipLabel.implicitHeight) + Kirigami.Units.smallSpacing * 2;
+            panelTipAnchor.width = w;
+            panelTipAnchor.height = h;
+            var p = item.mapToItem(content, item.width / 2, 0);
+            panelTipAnchor.x = Math.max(4, Math.min(Math.round(p.x - w / 2), content.width - w - 4));
+            var y = Math.round(p.y - h - 6);
+            if (y < 4) y = Math.round(p.y + item.height + 6);   // pas de place au-dessus : en dessous
+            panelTipAnchor.y = y;
+            if (panelTipAnchor.opacity > 0) { panelTipAnchor.shown = true; return; }
+            panelTipDelay.restart();
+        }
+
+        function hidePanelTip(item) {
+            if (item && panelTipAnchor.source && panelTipAnchor.source !== item) return;
+            panelTipAnchor.source = null;
+            panelTipDelay.stop();
+            panelTipAnchor.shown = false;
+        }
+
+        Timer {
+            id: panelTipDelay
+            interval: 400
+            onTriggered: if (panelTipAnchor.source) panelTipAnchor.shown = true
+        }
+
+        Item {
+            id: panelTipAnchor
+            z: 1000
+            property bool shown: false
+            opacity: 0
+            visible: opacity > 0
+            transform: Translate { id: panelTipShift; y: 4 }
+
+            states: [
+                State {
+                    name: "shown"
+                    when: panelTipAnchor.shown
+                    PropertyChanges { target: panelTipAnchor; opacity: 1 }
+                    PropertyChanges { target: panelTipShift; y: 0 }
+                },
+                State {
+                    name: "hidden"
+                    when: !panelTipAnchor.shown
+                    PropertyChanges { target: panelTipAnchor; opacity: 0 }
+                    PropertyChanges { target: panelTipShift; y: 4 }
+                }
+            ]
+
+            transitions: [
+                Transition {
+                    to: "shown"
+                    NumberAnimation {
+                        properties: "opacity,y"
+                        duration: 200
+                        easing.type: Easing.OutCubic
+                    }
+                },
+                Transition {
+                    to: "hidden"
+                    NumberAnimation {
+                        properties: "opacity"
+                        duration: 100
+                        easing.type: Easing.InCubic
+                    }
+                }
+            ]
+
+            Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+            property string text: ""
+            property var source: null
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 5
+                color: Kirigami.Theme.backgroundColor
+                border.width: 1
+                border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g,
+                                      Kirigami.Theme.highlightColor.b, 0.6)
+            }
+            PC3.Label {
+                id: panelTipLabel
+                anchors.centerIn: parent
+                text: panelTipAnchor.text
+                color: Kirigami.Theme.textColor
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize
+                textFormat: Text.PlainText
+            }
+        }
+
         // Fenestra : délai de grâce à l'ouverture : menu et volet apparaissent ensemble,
         // la surveillance ci-dessous attend qu'ils soient en place
         Timer { id: graceVolet; interval: 600; onTriggered: panel.syncFlag() }
@@ -1090,6 +1195,7 @@ PlasmaCore.Dialog {
         // lecteur multimédia + notifications) peut dépasser la hauteur disponible. Sans
         // ScrollView, les éléments les plus bas étaient rognés par le pied du volet.
         PC3.ScrollView {
+            id: defilementVolet
             anchors.top: parent.top
             anchors.topMargin: Kirigami.Units.gridUnit
             anchors.bottom: piedVolet.top
@@ -1099,9 +1205,14 @@ PlasmaCore.Dialog {
             width: parent.width - Kirigami.Units.gridUnit * 2
             visible: panel.dev !== null && panel.page === "auto"
             clip: true
+            // Fenestra : jamais de défilement horizontal — le contenu épouse la
+            // largeur visible (availableWidth), ce qui corrige le rognage à droite
+            // (colonne de tuiles coupée) causé par « width: parent.width » sur le
+            // contentItem, dont la largeur peut être celle du contenu débordant.
+            PC3.ScrollBar.horizontal.policy: PC3.ScrollBar.AlwaysOff
 
             ColumnLayout {
-                width: parent.width
+                width: defilementVolet.availableWidth
                 spacing: Kirigami.Units.smallSpacing
 
             Illustration {
@@ -1197,13 +1308,17 @@ PlasmaCore.Dialog {
                     }
                 }
                 PanelButton {
+                    id: refreshButton
                     framed: false
                     iconName: "view-refresh"
                     implicitWidth: implicitHeight
                     onClicked: panel.run("kdeconnect-cli --refresh")
-                    PC3.ToolTip.text: i18n("Refresh")
-                    PC3.ToolTip.visible: hovered
-                    PC3.ToolTip.delay: 400
+                    // Fenestra : infobulle via l'infobulle PARTAGÉE du volet
+                    // (content.showPanelTip) — un PC3.ToolTip était rendu décalé.
+                    onHoveredChanged: {
+                        if (hovered) content.showPanelTip(refreshButton, i18n("Refresh"));
+                        else content.hidePanelTip(refreshButton);
+                    }
                 }
             }
 
@@ -1693,14 +1808,17 @@ PlasmaCore.Dialog {
                             }
                         }
                         PanelButton {   // retirer (le message n'est pas supprimé)
+                            id: dismissButton
                             Layout.alignment: Qt.AlignTop
                             framed: false
                             text: "✕"
                             implicitWidth: implicitHeight
                             onClicked: panel.dismissNotif(nt.modelData.id)
-                            PC3.ToolTip.text: i18n("Dismiss notification")
-                            PC3.ToolTip.visible: hovered
-                            PC3.ToolTip.delay: 400
+                            // Fenestra : infobulle via l'infobulle PARTAGÉE du volet
+                            onHoveredChanged: {
+                                if (hovered) content.showPanelTip(dismissButton, i18n("Dismiss notification"));
+                                else content.hidePanelTip(dismissButton);
+                            }
                         }
                     }
                 }
@@ -1746,9 +1864,12 @@ PlasmaCore.Dialog {
                 text: "···"
                 implicitWidth: implicitHeight * 1.4
                 onClicked: plusMenu.visible = !plusMenu.visible
-                PC3.ToolTip.text: i18n("More options")
-                PC3.ToolTip.visible: hovered && !plusMenu.visible   // Fenestra : infobulle masquée menu ouvert
-                PC3.ToolTip.delay: 400
+                // Fenestra : infobulle via l'infobulle PARTAGÉE du volet ; masquée
+                // quand le menu « ··· » est ouvert.
+                onHoveredChanged: {
+                    if (hovered && !plusMenu.visible) content.showPanelTip(plusBouton, i18n("More options"));
+                    else content.hidePanelTip(plusBouton);
+                }
             }
         }
 

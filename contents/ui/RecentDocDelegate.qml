@@ -146,7 +146,9 @@ Item {
         font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.9
     }
 
-    // infobulle compacte (PC3.ToolTip) : nom du document + chemin complet
+    // infobulle : nom du document + chemin complet. Fenestra : déléguée à l'infobulle
+    // partagée au niveau de la fenêtre (tileTipAnchor, cf. MenuRepresentation.qml) —
+    // un PC3.ToolTip ancré ici, dans la page défilante, était rendu décalé.
     Item {
         id: toolTip
 
@@ -155,12 +157,16 @@ Item {
         anchors.fill: parent
         HoverHandler {
             id: toolTipHover
-            onHoveredChanged: item.GridView.view.itemContainsMouseChanged(hovered)
+            onHoveredChanged: {
+                item.GridView.view.itemContainsMouseChanged(hovered);
+                if (hovered && root.visible
+                        && !(typeof rootItem !== "undefined" && rootItem.scrolling)) {
+                    rootItem.showTileTip(toolTip, model.display + (item.fullPath ? "\n" + item.fullPath : ""));
+                } else if (typeof rootItem !== "undefined" && rootItem.hideTileTip) {
+                    rootItem.hideTileTip(toolTip);
+                }
+            }
         }
-        PlasmaComponents3.ToolTip.text: model.display + (item.fullPath ? "\n" + item.fullPath : "")
-        PlasmaComponents3.ToolTip.visible: toolTipHover.hovered && root.visible
-                                           && !(typeof rootItem !== "undefined" && rootItem.scrolling)
-        PlasmaComponents3.ToolTip.delay: 400
     }
 
     Keys.onPressed: event => {

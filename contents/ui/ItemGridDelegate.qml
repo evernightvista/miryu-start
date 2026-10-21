@@ -235,7 +235,9 @@ Item {
         font.weight: Font.DemiBold
     }
 
-    // infobulle compacte (PC3.ToolTip), comme « Marche/Arrêt »
+    // infobulle (étiquette tronquée) : déléguée à l'infobulle partagée au niveau de
+    // la fenêtre (tileTipAnchor, cf. MenuRepresentation.qml) — un PC3.ToolTip ancré
+    // ici, dans la page défilante, était rendu décalé.
     Item {
         id: toolTip
 
@@ -245,12 +247,18 @@ Item {
         anchors.fill: parent
         HoverHandler {
             id: toolTipHover
-            onHoveredChanged: item.GridView.view.itemContainsMouseChanged(hovered)
+            onHoveredChanged: {
+                item.GridView.view.itemContainsMouseChanged(hovered);
+                if (hovered && root.visible && label.truncated
+                        && !item.isLetterHeader && !item.isBlank
+                        && !(typeof rootItem !== "undefined" && rootItem.scrolling)
+                        && typeof rootItem !== "undefined" && rootItem.showTileTip) {
+                    rootItem.showTileTip(toolTip, toolTip.text);
+                } else if (typeof rootItem !== "undefined" && rootItem.hideTileTip) {
+                    rootItem.hideTileTip(toolTip);
+                }
+            }
         }
-        PlasmaComponents3.ToolTip.text: toolTip.text
-        PlasmaComponents3.ToolTip.visible: toolTipHover.hovered && root.visible && label.truncated
-                                           && !item.isLetterHeader && !item.isBlank
-        PlasmaComponents3.ToolTip.delay: 400
     }
 
     // Folder edit zone: hover-only tracker (clicks pass through to hoverArea which emits folderEditRequested)

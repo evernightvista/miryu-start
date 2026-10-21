@@ -238,6 +238,7 @@ PlasmaCore.Dialog {
             // la position du menu à l'ouverture suivante.
             voletPrevu = false;
             view.currentIndex = 0;
+            rootItem.hideTileTip();        // ferme l'infobulle de tuile avec le menu
         }
     }
 
@@ -301,6 +302,7 @@ PlasmaCore.Dialog {
 
     function reset() {
         searchDebounce.stop();
+        rootItem.hideTileTip();            // infobulle de tuile éventuellement restée visible
         rootItem.pluginResults = [];
         searchField.text = "";
         searchField.focus = true;
@@ -1843,6 +1845,132 @@ PlasmaCore.Dialog {
             menuWindow: root
         }
 
+        // ── Infobulle partagée (tuiles « Tout », documents, grilles, épinglage) ──
+        // Fenestra : dans CE dialogue, les PC3.ToolTip (Popup) ancrés dans la page
+        // défilante sont rendus décalés vers le haut — le décalage suit le défilement.
+        // On dessine donc l'infobulle SOI-MÊME : un simple cadre au NIVEAU DE LA
+        // FENÊTRE, position calculée avec mapToItem au moment du survol. Aucun Popup
+        // n'est impliqué, donc aucun décalage possible.
+        function showTileTip(item, text) {
+            if (!item || !text || text.length === 0) return;
+            tileTipAnchor.source = item;
+            tileTipAnchor.text = text;
+            // taille calée sur la police par défaut du thème (suit le DPI) : texte en
+            // defaultFont + marges d'un gridUnit, comme le ToolTip Plasma d'origine
+            var w = Math.ceil(tipLabel.implicitWidth) + Kirigami.Units.gridUnit;
+            var h = Math.ceil(tipLabel.implicitHeight) + Kirigami.Units.smallSpacing * 2;
+            tileTipAnchor.width = w;
+            tileTipAnchor.height = h;
+            var p = item.mapToItem(rootItem, item.width / 2, 0);
+            tileTipAnchor.x = Math.max(4, Math.min(Math.round(p.x - w / 2), rootItem.width - w - 4));
+            var y = Math.round(p.y - h - 6);
+            if (y < 4) y = Math.round(p.y + item.height + 6);   // pas de place au-dessus : en dessous
+            tileTipAnchor.y = y;
+            // Déjà visible (ou en cours de disparition) : on reste affiché et on file
+            // vers le nouvel élément (Behaviour sur x/y) — ni délai, ni animation de
+            // sortie, sinon les deux animations se battent quand on passe d'un fichier
+            // à l'autre dans la même section.
+            if (tileTipAnchor.opacity > 0) {
+                tileTipAnchor.shown = true;
+                return;
+            }
+            tileTipDelay.restart();            // sinon délai d'apparition
+        }
+
+        function hideTileTip(item) {
+            // un autre élément a déjà pris la main : ne pas éteindre son infobulle
+            if (item && tileTipAnchor.source && tileTipAnchor.source !== item) return;
+            tileTipAnchor.source = null;
+            tileTipDelay.stop();
+            tileTipAnchor.shown = false;   // disparition animée (visible suit l'opacité)
+        }
+
+        Timer {
+            id: tileTipDelay
+            interval: 400
+            onTriggered: if (tileTipAnchor.source) tileTipAnchor.shown = true
+        }
+
+        Item {
+            id: tileTipAnchor
+            z: 1000
+            // Fenestra : animation « Windows 11 / Fluent 2 » de l'infobulle :
+            //  - apparition : fondu + glissement de 4 px vers le haut, 200 ms,
+            //    courbe « décélération » (facile au début, freinée à la fin) ;
+            //  - disparition : fondu pur, 100 ms, courbe « accélération ».
+            property bool shown: false
+            opacity: 0
+            visible: opacity > 0
+            transform: Translate { id: tipShift; y: 4 }
+
+            states: [
+                State {
+                    name: "shown"
+                    when: tileTipAnchor.shown
+                    PropertyChanges { target: tileTipAnchor; opacity: 1 }
+                    PropertyChanges { target: tipShift; y: 0 }
+                },
+                State {
+                    name: "hidden"
+                    when: !tileTipAnchor.shown
+                    PropertyChanges { target: tileTipAnchor; opacity: 0 }
+                    PropertyChanges { target: tipShift; y: 4 }
+                }
+            ]
+
+            transitions: [
+                Transition {
+                    to: "shown"
+                    // opacité et glissement en PARALLÈLE (200 ms au total) : une
+                    // animation plus courte est moins souvent interrompue quand
+                    // la souris passe d'un fichier à l'autre.
+                    NumberAnimation {
+                        properties: "opacity,y"
+                        duration: 200
+                        easing.type: Easing.OutCubic
+                    }
+                },
+                Transition {
+                    to: "hidden"
+                    NumberAnimation {
+                        properties: "opacity"
+                        duration: 100
+                        easing.type: Easing.InCubic
+                    }
+                }
+            ]
+
+            // glissement souple vers le nouvel élément quand l'infobulle est déjà
+            // affichée (plus de saut brutal de position entre deux fichiers)
+            Behavior on x {
+                NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+            }
+            Behavior on y {
+                NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+            }
+
+            property string text: ""
+            property var source: null
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 5
+                color: Kirigami.Theme.backgroundColor
+                border.width: 1
+                border.color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.6)
+            }
+            PC3.Label {
+                id: tipLabel
+                anchors.centerIn: parent
+                text: tileTipAnchor.text
+                color: Kirigami.Theme.textColor
+                // police par défaut du thème : suit le DPI, même taille que les
+                // infobulles natives de Plasma
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize
+                textFormat: Text.PlainText
+            }
+        }
+
         // ── Bouton KDE Connect à droite de la recherche (action à brancher plus tard) ──
         Item {
             id: kdeConnectButton
@@ -1879,16 +2007,21 @@ PlasmaCore.Dialog {
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton
-                onClicked: root.basculerVolet()   // Fenestra : ordre du recentrage
-            }
+                onClicked: {
+                    rootItem.hideTileTip();      // Fenestra : ferme l'infobulle dès l'ouverture du volet
+                    root.basculerVolet();        // Fenestra : ordre du recentrage
+                }
 
-            // Fenestra : PC3.ToolTip — même style que Animated-plasma-task
-            // (PlasmaComponents3.ToolTip). Géré comme un attribut du déclencheur
-            // (pas comme un Item enfant) : Plasma choisit la position selon l'espace
-            // disponible. C'est le pattern KDE standard.
-            PC3.ToolTip.text: i18n("KDE Connect")
-            PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
-            PC3.ToolTip.visible: kdeConnectMouse.containsMouse
+                // Fenestra : infobulle « KDE Connect » via l'infobulle PARTAGÉE
+                // (rootItem.showTileTip), comme les tuiles et les documents —
+                // les PC3.ToolTip attachés à ce PlasmaCore.Dialog étaient
+                // rendus décalés (positionnés en haut de la fenêtre).
+                onContainsMouseChanged: {
+                    if (typeof rootItem === "undefined" || !rootItem.showTileTip) return;
+                    if (containsMouse) rootItem.showTileTip(kdeConnectButton, i18n("KDE Connect"));
+                    else rootItem.hideTileTip(kdeConnectButton);
+                }
+            }
         }
 
         // ── Quick Actions Bar ────────────────────────────────────────────────
@@ -1922,16 +2055,22 @@ PlasmaCore.Dialog {
                     ]
 
                     delegate: PC3.ToolButton {
+                        id: qaButton
                         icon.name: modelData.icon
                         display: AbstractButton.IconOnly
-                        PC3.ToolTip.text: modelData.tip
-                        PC3.ToolTip.visible: hovered
-                        PC3.ToolTip.delay: 400
                         opacity: hovered ? 1.0 : 0.55
                         Behavior on opacity { NumberAnimation { duration: 100 } }
                         onClicked: {
                             executable.exec(modelData.cmd);
                             root.toggle();
+                        }
+                        // Fenestra : infobulle via l'infobulle PARTAGÉE (rootItem.showTileTip),
+                        // comme les tuiles / documents / bouton KDE Connect — un PC3.ToolTip
+                        // attaché dans ce PlasmaCore.Dialog était rendu décalé.
+                        onHoveredChanged: {
+                            if (typeof rootItem === "undefined" || !rootItem.showTileTip) return;
+                            if (hovered) rootItem.showTileTip(qaButton, modelData.tip);
+                            else rootItem.hideTileTip(qaButton);
                         }
                     }
                 }
@@ -2425,9 +2564,14 @@ PlasmaCore.Dialog {
                                 width: Kirigami.Units.iconSizes.medium + Kirigami.Units.gridUnit * 2
                                 height: recentAppsListView.height
 
-                                PC3.ToolTip.text: model.display || ""
-                                PC3.ToolTip.visible: recentAppHover.containsMouse && recentAppLabel.truncated
-                                PC3.ToolTip.delay: 800
+                                // Fenestra : infobulle (nom tronqué) via l'infobulle PARTAGÉE
+                                // (rootItem.showTileTip) — un PC3.ToolTip attaché ici était rendu décalé.
+                                readonly property bool tipHover: recentAppHover.containsMouse && recentAppLabel.truncated
+                                onTipHoverChanged: {
+                                    if (typeof rootItem === "undefined" || !rootItem.showTileTip) return;
+                                    if (tipHover) rootItem.showTileTip(recentAppItem, model.display || "");
+                                    else rootItem.hideTileTip(recentAppItem);
+                                }
 
                                 Rectangle {
                                     anchors.fill: parent
@@ -2552,6 +2696,37 @@ PlasmaCore.Dialog {
                                 event.accepted = true;
                                 documentsGrid.focus = false;
                                 footerContent.forceActiveFocus();
+                            }
+                        }
+                    }
+
+                    // Fenestra : espace réservé quand la section « Recommandations » est vide
+                    // (aucun document récent) — plus parlant qu'une zone blanche.
+                    Item {
+                        id: docsPlaceholder
+                        visible: Plasmoid.configuration.showRecentDocs && documentsGrid.count === 0
+                        x: documentsGrid.x
+                        y: documentsGrid.y
+                        width: documentsGrid.width
+                        height: documentsGrid.height
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: Kirigami.Units.largeSpacing
+
+                            Kirigami.Icon {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                source: "document-open-recent"
+                                implicitWidth: Kirigami.Units.iconSizes.large
+                                implicitHeight: Kirigami.Units.iconSizes.large
+                                opacity: 0.4
+                            }
+
+                            PC3.Label {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: i18n("No recently accessed files yet")
+                                color: root.colorWithAlpha(Kirigami.Theme.textColor, 0.55)
+                                font.pointSize: Kirigami.Theme.defaultFont.pointSize
                             }
                         }
                     }
@@ -3645,6 +3820,8 @@ PlasmaCore.Dialog {
             Footer {
                 id: footerContent
                 anchors.fill: parent
+                // Fenestra : hôte de l'infobulle partagée (dessinée dans rootItem)
+                tipHost: rootItem
                 // Fenestra : écran utile transmis au pied (la fenêtre Compte s'y borne)
                 ecranUtile: root.ecranUtile
                 // le menu se ferme -> les fenêtres Compte / Alimentation aussi

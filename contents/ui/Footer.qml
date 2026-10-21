@@ -32,6 +32,12 @@ RowLayout{
 
     Logic { id: monLogic }
 
+    // Fenestra : hôte de l'infobulle partagée (rootItem de MenuRepresentation.qml).
+    // Un PlasmaComponents3.ToolTip / PC3.ToolTip attaché dans le PlasmaCore.Dialog
+    // du menu était rendu décalé (positionné en haut de la fenêtre) : on passe
+    // donc par l'infobulle dessinée à la main par MenuRepresentation.
+    property var tipHost: null
+
     spacing: Kirigami.Units.largeSpacing
 
     // Fenestra : écran utile (zone hors barres / panneaux), fourni par
@@ -675,13 +681,18 @@ RowLayout{
                 Behavior on scale { NumberAnimation { duration: 100 } }
             }
         }
-        PlasmaComponents3.ToolTip.delay: 1000
-        PlasmaComponents3.ToolTip.timeout: 1000
-        PlasmaComponents3.ToolTip.visible: hovered && !powerMenu.visible
-        PlasmaComponents3.ToolTip.text: i18n("Power")
         visible: sessionManager.canLock || sessionManager.canSuspend || sessionManager.canReboot || sessionManager.canShutdown
 
+        // Fenestra : infobulle « Power » via l'infobulle PARTAGÉE (tipHost.showTileTip),
+        // comme les tuiles / documents / bouton KDE Connect.
+        onHoveredChanged: {
+            if (!tipHost || !tipHost.showTileTip) return;
+            if (hovered && !powerMenu.visible) tipHost.showTileTip(powerButton, i18n("Power"));
+            else tipHost.hideTileTip(powerButton);
+        }
+
         onClicked: {
+            if (tipHost && tipHost.hideTileTip) tipHost.hideTileTip(powerButton);
             powerMenuAboutToOpen();
             powerMenu.visible = true;
         }
