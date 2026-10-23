@@ -27,6 +27,7 @@ import QtQuick.Layouts 1.1
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core 2.0 as PlasmaCore
 import org.kde.kirigami as Kirigami
+import org.kde.ksvg as KSvg
 import org.kde.taskmanager as TaskManager
 
 Item {
@@ -51,6 +52,23 @@ Item {
     // KDE Connect suit automatiquement. Le clic sur le bouton Démarrer lui-même
     // est ignoré (il gère déjà l'ouverture/fermeture).
     property QtObject panelEar: null
+
+    // Fenestra : état « ouvert » du menu, sur le même principe que Plasma 6 pour
+    // un applet déployé (PlasmoidItem.expanded) : le shell dessine alors l'onglet
+    // actif du thème derrière le bouton tant que la vue reste ouverte.
+    readonly property bool menuOuvert: !!(dashWindow && dashWindow.visible)
+
+    // Marges du conteneur d'applet de la barre, pour faire descendre l'onglet
+    // actif jusqu'au bord de la barre, exactement comme CompactApplet.qml.
+    readonly property var containerMargins: {
+        let item = root;
+        while (item.parent) {
+            item = item.parent;
+            if (item.isAppletContainer)
+                return item.getMargins;
+        }
+        return undefined;
+    }
 
     function barRoot() {
         var p = root;
@@ -213,14 +231,63 @@ Item {
     }
     Plasmoid.status: dashWindow && dashWindow.visible ? PlasmaCore.Types.RequiresAttentionStatus : PlasmaCore.Types.PassiveStatus
 
-    // Fenestra : le bouton n'a plus de cadre de surlignage maison (rectangle blanc qui
-    // ne suivait pas le thème et débordait du bouton). Il se contente de l'état actif
-    // du thème, comme le fait déjà Menu 11 Next : léger éclat de l'icône au survol.
+    // Fenestra : surlignage « onglet actif » emprunté au thème Plasma 6.
+    // Le shell ne le dessine que derrière un applet déployé (PlasmoidItem.expanded,
+    // voir CompactApplet.qml) ; comme le menu de Miryu Start est une fenêtre
+    // PlasmaCore.Dialog indépendante, l'applet n'est jamais « expanded » et rien
+    // n'était donc affiché une fois le bouton relâché. On rejoue ici exactement le
+    // même élément de thème (widgets/tabbar + <bord>-active-tab) tant que le menu
+    // est ouvert, avec la même transition que le shell.
+    KSvg.FrameSvgItem {
+        id: activeTab
+        z: -1
+        imagePath: "widgets/tabbar"
+
+        anchors {
+            fill: parent
+            property bool returnAllMargins: true
+            // L'onglet déborde du bouton jusqu'au bord de la barre, comme dans
+            // CompactApplet.qml (marges du conteneur d'applet).
+            bottomMargin: !root.vertical && root.containerMargins ? -root.containerMargins("bottom", returnAllMargins) : 0
+            topMargin: !root.vertical && root.containerMargins ? -root.containerMargins("top", returnAllMargins) : 0
+            leftMargin: root.vertical && root.containerMargins ? -root.containerMargins("left", returnAllMargins) : 0
+            rightMargin: root.vertical && root.containerMargins ? -root.containerMargins("right", returnAllMargins) : 0
+        }
+
+        prefix: {
+            let prefix;
+            switch (Plasmoid.location) {
+            case PlasmaCore.Types.LeftEdge:
+                prefix = "west-active-tab";
+                break;
+            case PlasmaCore.Types.TopEdge:
+                prefix = "north-active-tab";
+                break;
+            case PlasmaCore.Types.RightEdge:
+                prefix = "east-active-tab";
+                break;
+            default:
+                prefix = "south-active-tab";
+            }
+            if (!hasElementPrefix(prefix))
+                prefix = "active-tab";
+            return prefix;
+        }
+
+        opacity: root.menuOuvert ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity {
+            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.InOutQuad }
+        }
+    }
+
+    // État actif de l'icône : survol, ou menu ouvert (l'éclat du thème reste
+    // allumé après le relâchement, comme le bouton Kickoff déployé).
     Kirigami.Icon {
         id: buttonIcon
         anchors.fill: parent
         source: useCustomButtonImage ? Plasmoid.configuration.customButtonImage : Plasmoid.configuration.icon
-        active: buttonHover.hovered
+        active: buttonHover.hovered || root.menuOuvert
         smooth: true
         scale: mouseArea.pressed ? 0.85 : 1.0
 
