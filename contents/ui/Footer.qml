@@ -188,7 +188,7 @@ RowLayout{
                         if (faceUrl !== "") {
                             return faceUrl
                         }
-                        return "file://usr/share/icons/breeze/apps/48/kuser.svg"
+                        return "file://usr/share/icons/miryu/scalable/apps/cs-user-accounts.svg"
                     }
                     cache: false
                     visible: false
@@ -471,7 +471,7 @@ RowLayout{
                                                     property bool failed: false
                                                     anchors.fill: parent
                                                     source: failed
-                                                        ? "file:///usr/share/icons/breeze/apps/48/kuser.svg"
+                                                        ? "file:///usr/share/icons/miryu/scalable/apps/cs-user-accounts.svg"
                                                         : ("file:///var/lib/AccountsService/icons/" + modelData.login)
                                                     onStatusChanged: {
                                                         if (status === Image.Error && !failed) {
