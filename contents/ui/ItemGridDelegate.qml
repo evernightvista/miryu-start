@@ -27,6 +27,30 @@ Item {
 
     enabled: !model.disabled
 
+    // Pop-in animation: plays when this delegate is created or recycled with
+    // new data (e.g. an app dragged out of a folder reappears in the grid).
+    // The GridView add/remove transitions don't fire because KSortFilterProxyModel
+    // invalidates with a full model reset, so we animate at the delegate level.
+    SequentialAnimation on opacity {
+        id: popInOpacityAnim
+        running: false
+        NumberAnimation { from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+    }
+    SequentialAnimation on scale {
+        id: popInScaleAnim
+        running: false
+        NumberAnimation { from: 0.6; to: 1; duration: 180; easing.type: Easing.OutBack }
+    }
+
+    onFavoriteIdChanged: {
+        popInOpacityAnim.restart();
+        popInScaleAnim.restart();
+    }
+    Component.onCompleted: {
+        popInOpacityAnim.start();
+        popInScaleAnim.start();
+    }
+
     property int iconSize
     property bool showLabel: true
     // tag « Nouveauté » (activé seulement par la grille de la fenêtre de catégorie)
@@ -35,13 +59,19 @@ Item {
                                      && favoriteId !== "" && typeof rootItem !== "undefined"
                                      && rootItem.newApps !== undefined && !!rootItem.newApps[favoriteId]
 
-    property int itemIndex: model.index
+    // itemIndex: the delegate's row position. For ListModel-backed grids we also
+    // expose an explicit `row` role; for QAbstractItemModel grids we fall back to
+    // the delegate's context `index` property (always equals the row position).
+    property int itemIndex: (model.row !== undefined && model.row !== null && model.row !== "") ? model.row : index
     property string favoriteId: model.favoriteId !== undefined ? model.favoriteId : ""
     property url url: model.url !== undefined ? model.url : ""
     property variant icon: model.decoration !== undefined ? model.decoration : ""
     property var m: model
     property bool isFolderItem: model.itemType === "folder"
     property bool isIndented:   model.indented === true
+    // Capture folder index at item scope so nested Repeaters (which shadow `model`)
+    // can still read it via `item.folderIdx`.
+    property int folderIdx: model.folderIdx !== undefined ? model.folderIdx : -1
 
     property bool hasActionList: {
         if (isFolderItem) return true;
@@ -56,8 +86,13 @@ Item {
 
     function openActionMenu(x, y) {
         if (isFolderItem) {
-            allAppsFolderContextMenu.targetIndex = model.folderIdx;
-            allAppsFolderContextMenu.popup();
+            if (item.isPinnedFolder) {
+                folderContextMenu.targetIndex = item.folderIdx;
+                folderContextMenu.popup();
+            } else {
+                allAppsFolderContextMenu.targetIndex = item.folderIdx;
+                allAppsFolderContextMenu.popup();
+            }
             return;
         }
         var actionList = (model.actionList !== undefined) ? model.actionList : [];
@@ -67,7 +102,7 @@ Item {
     }
 
     function actionTriggered(actionId, actionArgument) {
-        var close = (Tools.triggerAction(GridView.view.model, model.index, actionId, actionArgument) === true);
+        var close = (Tools.triggerAction(GridView.view.model, item.itemIndex, actionId, actionArgument) === true);
 
         if (close) {
             root.toggle();
@@ -88,6 +123,31 @@ Item {
         z: 1
     }
 
+    // Folder-creation target highlight (drag one app onto another)
+    Rectangle {
+        id: folderCreateHighlight
+        anchors.fill: parent
+        anchors.margins: 2
+        radius: Kirigami.Units.smallSpacing + 2
+        visible: (typeof itemGrid !== "undefined") && itemGrid.folderCreateTarget === item.itemIndex
+        color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.22)
+        border.width: 2
+        border.color: Kirigami.Theme.highlightColor
+        opacity: visible ? 1 : 0
+        scale: visible ? 1 : 0.8
+        z: 1
+
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+
+        // Subtle pulse while waiting for the drop
+        SequentialAnimation on opacity {
+            running: folderCreateHighlight.visible
+            loops: Animation.Infinite
+            NumberAnimation { to: 0.5; duration: 500; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutSine }
+        }
+    }
+
     // Drop-onto-folder area (only active for folder items)
     DropArea {
         id: folderDropArea
@@ -98,15 +158,22 @@ Item {
             if (!src || !src.favoriteId || src.favoriteId === "") return;
             if (src.m && src.m.itemType === "folder") return;
             var favId = src.favoriteId;
-            var fi = model.folderIdx;
-            if (fi < 0 || fi >= rootItem.allAppsFoldersData.length) return;
-            var folders = rootItem.allAppsFoldersData.slice();
+            var fi = item.folderIdx;
+            var isPinned = item.isPinnedFolder;
+            var dataArr = isPinned ? rootItem.pinnedFoldersData : rootItem.allAppsFoldersData;
+            if (fi < 0 || fi >= dataArr.length) return;
+            var folders = dataArr.slice();
             var folder = folders[fi];
             if (!folder || (folder.items && folder.items.indexOf(favId) >= 0)) return;
             var newItems = (folder.items || []).concat([favId]);
             folders[fi] = { name: folder.name, items: newItems, createdAt: folder.createdAt || 0 };
-            rootItem.allAppsFoldersData = folders;
-            rootItem.saveAllAppsFolders();
+            if (isPinned) {
+                rootItem.pinnedFoldersData = folders;
+                rootItem.saveFolders();
+            } else {
+                rootItem.allAppsFoldersData = folders;
+                rootItem.saveAllAppsFolders();
+            }
         }
     }
 
@@ -131,9 +198,17 @@ Item {
     readonly property int padTop: Math.min(highlightItemSvg.margins.top, Math.round(Kirigami.Units.gridUnit * 0.75))
     readonly property int padLR: Math.min(highlightItemSvg.margins.left, Math.round(Kirigami.Units.gridUnit * 0.75))
 
+    // A folder tile inside the pinned grid (2×2 app mosaic, pinned folder menu).
+    // Driven by the grid itself (`pinnedGrid`) instead of a model role, which is
+    // more reliable than optional ListModel roles.
+    readonly property bool isPinnedFolder: isFolderItem
+                                           && item.GridView.view !== null
+                                           && item.GridView.view !== undefined
+                                           && item.GridView.view.pinnedGrid === true
+
     Kirigami.Icon {
         id: icon
-        visible: !item.isLetterHeader && !item.isBlank
+        visible: !item.isLetterHeader && !item.isBlank && !item.isPinnedFolder
         // Fenestra : icône à « padTop » (au lieu de 2×padTop) pour libérer la hauteur
         // nécessaire au nom sur 2 lignes — la tuile (cellSizeHeight) réserve exactement
         // « padTop + icône + écart + nom + padTop ».
@@ -149,6 +224,60 @@ Item {
         animated: false
 
         source: model.decoration
+    }
+
+    // Pinned folder: 2x2 mosaic of member app icons
+    Item {
+        id: folderMosaic
+        visible: item.isPinnedFolder
+        y: item.padTop
+        width: iconSize
+        height: iconSize
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Kirigami.Units.smallSpacing
+            color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.15)
+            border.width: 1
+            border.color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.35)
+        }
+
+        Grid {
+            anchors.centerIn: parent
+            columns: 2
+            spacing: 2
+
+            Repeater {
+                model: {
+                    if (!item.isPinnedFolder) return 0;
+                    var fd = rootItem.pinnedFoldersData[item.folderIdx];
+                    return fd ? Math.min(4, fd.items.length) : 0;
+                }
+                delegate: Kirigami.Icon {
+                    width: (folderMosaic.width - 10) / 2
+                    height: width
+                    source: {
+                        var fd = rootItem.pinnedFoldersData[item.folderIdx];
+                        return (fd && fd.items[index]) ? rootItem.iconSourceForId(fd.items[index]) : "";
+                    }
+                    animated: false
+                }
+            }
+        }
+
+        // Empty folder icon
+        Kirigami.Icon {
+            visible: {
+                var fd = rootItem.pinnedFoldersData[item.folderIdx];
+                return fd && fd.items.length === 0;
+            }
+            anchors.centerIn: parent
+            source: "folder"
+            width: folderMosaic.width * 0.7
+            height: width
+            animated: false
+        }
     }
 
     Rectangle {
@@ -249,6 +378,13 @@ Item {
             id: toolTipHover
             onHoveredChanged: {
                 item.GridView.view.itemContainsMouseChanged(hovered);
+                // Highlight the item under the cursor even if the mouse didn't
+                // move (e.g. menu opened with the pointer already over an app).
+                if (hovered && root.visible && !item.isLetterHeader && !item.isBlank
+                        && item.GridView.view
+                        && !(typeof itemGrid !== "undefined" && itemGrid._keyNavRecently())) {
+                    item.GridView.view.currentIndex = item.itemIndex;
+                }
                 if (hovered && root.visible && label.truncated
                         && !item.isLetterHeader && !item.isBlank
                         && !(typeof rootItem !== "undefined" && rootItem.scrolling)
@@ -262,9 +398,11 @@ Item {
     }
 
     // Folder edit zone: hover-only tracker (clicks pass through to hoverArea which emits folderEditRequested)
+    // Pinned folders have no "+" action: they are managed from the folder popup,
+    // so the zone is disabled for them.
     MouseArea {
         id: folderBtnZone
-        visible: isFolderItem
+        visible: isFolderItem && !item.isPinnedFolder
         anchors.right: parent.right
         width: Kirigami.Units.gridUnit * 2
         height: parent.height
@@ -273,11 +411,11 @@ Item {
         z: 1
     }
 
-    property bool folderEditZoneHovered: isFolderItem && folderBtnZone.containsMouse
+    property bool folderEditZoneHovered: isFolderItem && !item.isPinnedFolder && folderBtnZone.containsMouse
 
     // Visual indicator — non-interactive, top-right corner badge
     Item {
-        visible: isFolderItem && folderEditZoneHovered
+        visible: isFolderItem && !item.isPinnedFolder && folderEditZoneHovered
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: Kirigami.Units.smallSpacing
@@ -304,8 +442,8 @@ Item {
     // Ctrl+number keyboard shortcut badge
     Rectangle {
         property int pageRelIdx: rootItem.pinnedItemsPerPage > 0
-                                 ? model.index % rootItem.pinnedItemsPerPage
-                                 : model.index
+                                 ? item.itemIndex % rootItem.pinnedItemsPerPage
+                                 : item.itemIndex
         visible: !isFolderItem && !isIndented && rootItem.ctrlHeld && pageRelIdx < 9
         anchors.top: parent.top
         anchors.right: parent.right
@@ -341,7 +479,10 @@ Item {
 
                             if ("trigger" in GridView.view.model) {
                                 GridView.view.model.trigger(index, "", null);
-                                root.toggle();
+                                // Don't close the menu when opening a folder
+                                if (!isFolderItem) {
+                                    root.toggle();
+                                }
                             }
 
                             itemGrid.itemActivated(index, "", null);

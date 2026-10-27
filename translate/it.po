@@ -5,168 +5,24 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Miryu Start 1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/miryugaming/miryu-start\n"
-"POT-Creation-Date: 2026-10-21 14:50+0800\n"
+"POT-Creation-Date: 2026-10-27 13:55+0800\n"
 "Language: it\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: contents/ui/MenuRepresentation.qml:1113
-msgid "%1 afternoon picks"
-msgstr "Selezione di %1 pomeriggio"
+#: contents/config/config.qml:32 contents/ui/ConfigGeneral.qml:52
+msgid "General"
+msgstr "Generale"
 
-#: contents/ui/MenuRepresentation.qml:870
-msgid "%1 app"
-msgid_plural "%1 apps"
-msgstr[0] "%1 app"
-msgstr[1] "%1 app"
+#: contents/ui/CompactRepresentation.qml:322 contents/ui/main.qml:73
+msgid "Start"
+msgstr "Avvia"
 
-#: contents/ui/MenuRepresentation.qml:1283
-msgid "%1 at %2"
-msgstr "%1 alle %2"
-
-#: contents/ui/MenuRepresentation.qml:1114
-msgid "%1 evening picks"
-msgstr "Selezione di %1 sera"
-
-#: contents/ui/MenuRepresentation.qml:1294
-msgid "%1 h ago"
-msgstr "%1 h fa"
-
-#: contents/ui/MenuRepresentation.qml:1545
-msgid "%1 is installed — filed under “%2”"
-msgstr "%1 è installata — inserita in «%2»"
-
-#: contents/ui/MenuRepresentation.qml:1293
-msgid "%1 min ago"
-msgstr "%1 min fa"
-
-#: contents/ui/MenuRepresentation.qml:1112
-msgid "%1 morning picks"
-msgstr "Selezione di %1 mattina"
-
-#: contents/ui/MenuRepresentation.qml:1548
-msgid "%1 new application"
-msgid_plural "%1 new applications"
-msgstr[0] "%1 nuova applicazione"
-msgstr[1] "%1 nuove applicazioni"
-
-#: contents/ui/MenuRepresentation.qml:1111
-msgid "%1 night session"
-msgstr "Notte di %1"
-
-#: contents/ui/KdeConnectPanel.qml:1156
-msgid "1. Install the KDE Connect app from the App Store.\n"
-msgstr "1. Installa l'app KDE Connect dall'App Store.\n"
-
-#: contents/ui/KdeConnectPanel.qml:1157
-msgid "1. Install the KDE Connect app from the Play Store or F-Droid.\n"
-msgstr "1. Installa l'app KDE Connect dal Play Store o da F-Droid.\n"
-
-#: contents/ui/KdeConnectPanel.qml:1158
-msgid ""
-"2. Connect the phone to the same Wi-Fi network as this PC (or connect this "
-"PC to the phone's hotspot).\n"
-msgstr ""
-"2. Collega il telefono alla stessa rete Wi-Fi di questo PC (o questo PC "
-"all'hotspot del telefono).\n"
-
-#: contents/ui/KdeConnectPanel.qml:1159
-msgid "3. In the app, tap the name of this PC, then “Request pairing”.\n"
-msgstr ""
-"3. Nell'app, tocca il nome di questo PC, poi “Richiedi associazione”.\n"
-"3. Nell'app, tocca il nome di questo PC e poi «Richiedi associazione».\n"
-
-#: contents/ui/KdeConnectPanel.qml:1160
-msgid "4. Accept the request that appears on this PC."
-msgstr "4. Accetta la richiesta che compare su questo PC."
-
-#: contents/ui/KdeConnectPanel.qml:1187
-msgid "< Back"
-msgstr "< Indietro"
-
-#: contents/ui/KdeConnectPanel.qml:1104
-msgid "Access your mobile device here"
-msgstr "Accedi qui al tuo dispositivo mobile"
-
-#: contents/ui/MenuRepresentation.qml:2973
-#: contents/ui/MenuRepresentation.qml:3434
-msgid "Actions"
-msgstr "Azioni"
-
-#: contents/ui/MenuRepresentation.qml:5006
-msgid "Add apps to folder"
-msgstr "Aggiungi app alla cartella"
-
-#: contents/ui/MenuRepresentation.qml:5005
-msgid "Add apps — %1"
-msgstr "Aggiungi app — %1"
-
-#: contents/ui/code/tools.js:54
-msgid "Add to Favorites"
-msgstr "Aggiungi ai preferiti"
-
-#: contents/ui/MenuRepresentation.qml:1130
-msgid "Afternoon session"
-msgstr "Sessione del pomeriggio"
-
-#: contents/ui/MenuRepresentation.qml:2795
-#: contents/ui/MenuRepresentation.qml:2969
-msgid "All"
-msgstr "Tutto"
-
-#: contents/ui/ConfigGeneral.qml:220
-msgid "All Apps"
-msgstr "Tutte le app"
-
-#: contents/ui/MenuRepresentation.qml:3285
-msgid "Alt+1–9 to launch"
-msgstr "Alt+1–9 per avviare"
-
-#: contents/ui/MenuRepresentation.qml:2970
-#: contents/ui/MenuRepresentation.qml:3434
-msgid "Apps"
-msgstr "App"
-
-#: contents/ui/ConfigGeneral.qml:182
-msgid "Apps icon size:"
-msgstr "Dimensione icone delle app:"
-
-#: contents/ui/MenuRepresentation.qml:3474
-#: contents/ui/MenuRepresentation.qml:3988
-msgid "Back"
-msgstr "Indietro"
-
-#: contents/ui/KdeConnectPanel.qml:1336
-msgid "Browse"
-msgstr "Sfoglia"
-
-#: contents/ui/MenuRepresentation.qml:2053
-msgid "Calculator"
-msgstr "Calcolatrice"
-
-#: contents/ui/KdeConnectPanel.qml:1464 contents/ui/KdeConnectPanel.qml:1494
-#: contents/ui/MenuRepresentation.qml:4402
-#: contents/ui/MenuRepresentation.qml:4527
-#: contents/ui/MenuRepresentation.qml:4802
-#: contents/ui/MenuRepresentation.qml:4877
-msgid "Cancel"
-msgstr "Annulla"
-
-#: contents/ui/MenuRepresentation.qml:2804
-#: contents/ui/MenuRepresentation.qml:3589
-msgid "Categories"
-msgstr "Categorie"
-
-#. un nom, pas un numéro
-#: contents/ui/KdeConnectPanel.qml:458
-msgid "Choose a contact from the list or type a number"
-msgstr "Scegli un contatto dall'elenco o digita un numero"
-
-#: contents/ui/MenuRepresentation.qml:4301
-msgid "Choose from pinned apps:"
-msgstr "Scegli tra le app aggiunte:"
+#: contents/ui/ConfigGeneral.qml:81
+msgid "Icon:"
+msgstr "Icona:"
 
 #: contents/ui/ConfigGeneral.qml:161
 msgctxt "@item:inmenu Open icon chooser dialog"
@@ -178,271 +34,33 @@ msgctxt "@item:inmenu Reset icon to default"
 msgid "Clear Icon"
 msgstr "Rimuovi icona"
 
-#: contents/ui/KdeConnectPanel.qml:1337
-msgid "Clipboard"
-msgstr "Appunti"
-
-#: contents/ui/KdeConnectPanel.qml:237
-msgid "Clipboard sent"
-msgstr "Appunti inviati"
-
-#: contents/ui/KdeConnectPanel.qml:1144
-msgid "Connect an Android phone"
-msgstr "Collega un telefono Android"
-
-#: contents/ui/KdeConnectPanel.qml:1144
-msgid "Connect an iPhone"
-msgstr "Collega un iPhone"
-
-#: contents/ui/KdeConnectPanel.qml:1253
-msgid "Connected"
-msgstr "Connesso"
-
-#: contents/ui/MenuRepresentation.qml:4407
-#: contents/ui/MenuRepresentation.qml:4807
-msgid "Create"
-msgstr "Crea"
-
-#: contents/ui/MenuRepresentation.qml:4447
-#: contents/ui/MenuRepresentation.qml:4731
-msgid "Delete folder"
-msgstr "Elimina la cartella"
-
-#: contents/ui/KdeConnectPanel.qml:1814
-msgid "Dismiss notification"
-msgstr "Rimuovi la notifica"
-
-#: contents/ui/ConfigGeneral.qml:189
-msgid "Docs icon size:"
-msgstr "Dimensione icone dei documenti:"
-
-#: contents/ui/KdeConnectPanel.qml:1174
-msgid "Download"
-msgstr "Scarica"
-
-#: contents/ui/MenuRepresentation.qml:4791
-msgid "Drag apps from the list into this folder to add them."
-msgstr "Trascina le app dall'elenco in questa cartella per aggiungerle."
-
-#: contents/ui/MenuRepresentation.qml:4702
-msgid "Drag apps here to add them"
-msgstr "Trascina qui le app per aggiungerle"
-
-#: contents/ui/main.qml:268
-msgid "Edit Applications…"
-msgstr "Modifica applicazioni…"
-
-#: contents/ui/ConfigGeneral.qml:259
-msgid "Enable shell command runner ( > cmd )"
-msgstr "Abilita l'esecuzione di comandi ( > cmd )"
-
-#: contents/ui/MenuRepresentation.qml:3150
-msgid "Enter or click to copy result"
-msgstr "Invio o clic per copiare il risultato"
-
-#: contents/ui/MenuRepresentation.qml:1131
-msgid "Evening apps"
-msgstr "App della sera"
-
-#: contents/ui/KdeConnectPanel.qml:255
-msgid "File sent"
-msgid_plural "%1 files sent"
-msgstr[0] "File inviato"
-msgstr[1] "%1 file inviati"
-
-#: contents/ui/MenuRepresentation.qml:2971
-#: contents/ui/MenuRepresentation.qml:3434
-msgid "Files"
-msgstr "File"
-
-#: contents/ui/MenuRepresentation.qml:5016
-msgid "Filter…"
-msgstr "Filtra…"
-
-#: contents/ui/MenuRepresentation.qml:4297
-#: contents/ui/MenuRepresentation.qml:4783
-msgid "Folder name"
-msgstr "Nome della cartella"
-
-#: contents/ui/ConfigGeneral.qml:269
-msgid "Footer power buttons"
-msgstr "Pulsanti di alimentazione nel piè di pagina"
-
-#: contents/ui/MenuRepresentation.qml:1124
-msgid "Frequently used"
-msgstr "Usate spesso"
-
-#: contents/ui/MenuRepresentation.qml:1108
-msgid "Friday"
-msgstr "venerdì"
-
-#: contents/config/config.qml:32 contents/ui/ConfigGeneral.qml:52
-msgid "General"
-msgstr "Generale"
-
-#: contents/ui/MenuRepresentation.qml:678
-msgid "Good afternoon"
-msgstr "Buon pomeriggio"
-
-#: contents/ui/MenuRepresentation.qml:679
-msgid "Good evening"
-msgstr "Buonasera"
-
-#: contents/ui/MenuRepresentation.qml:677
-msgid "Good morning"
-msgstr "Buongiorno"
-
-#: contents/ui/MenuRepresentation.qml:1128
-msgid "Good morning apps"
-msgstr "App del mattino"
-
-#: contents/ui/MenuRepresentation.qml:2804
-#: contents/ui/MenuRepresentation.qml:3590
-msgid "Grid"
-msgstr "Griglia"
-
-#: contents/ui/KdeConnectPanel.qml:236
-msgid "Hello from the PC"
-msgstr "Ciao dal PC"
-
-#: contents/ui/KdeConnectPanel.qml:1910
-msgid "Hide this panel"
-msgstr "Nascondi questo pannello"
-
-#. chemin complet pour l'infobulle
-#: contents/ui/RecentDocDelegate.qml:63
-msgid "Home Folder"
-msgstr "Cartella home"
-
-#: contents/ui/ConfigGeneral.qml:253
-msgid "Home page:"
-msgstr "Pagina iniziale:"
+#: contents/ui/ConfigGeneral.qml:182
+msgid "Apps icon size:"
+msgstr "Dimensione icone delle app:"
 
 #: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
-msgid "Huge"
-msgstr "Molto grande"
-
-#: contents/ui/ConfigGeneral.qml:81
-msgid "Icon:"
-msgstr "Icona:"
-
-#: contents/ui/MenuRepresentation.qml:1292
-msgid "Just now"
-msgstr "Adesso"
-
-#: contents/ui/ConfigGeneral.qml:232 contents/ui/MenuRepresentation.qml:2021
-msgid "KDE Connect"
-msgstr "KDE Connect"
-
-#: contents/ui/KdeConnectPanel.qml:1905
-msgid "KDE Connect settings"
-msgstr "Impostazioni di KDE Connect"
-
-#: contents/ui/ConfigGeneral.qml:238
-msgid "Keep the mobile panel open between menu openings"
-msgstr "Mantieni aperto il pannello mobile tra un'apertura del menu e l'altra"
-
-#: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
-msgid "Large"
-msgstr "Grande"
-
-#: contents/ui/MenuRepresentation.qml:1132
-msgid "Late night"
-msgstr "Notte fonda"
-
-#: contents/ui/KdeConnectPanel.qml:264
-msgid "Link sent: it opens on the phone"
-msgstr "Link inviato: si apre sul telefono"
-
-#: contents/ui/MenuRepresentation.qml:2804
-#: contents/ui/MenuRepresentation.qml:3591
-msgid "List"
-msgstr "Elenco"
-
-#: contents/ui/Footer.qml:596
-msgid "Local account"
-msgstr "Account locale"
-
-#: contents/ui/Footer.qml:754
-msgid "Lock"
-msgstr "Blocca"
-
-#: contents/ui/MenuRepresentation.qml:2050
-msgid "Lock Screen"
-msgstr "Blocca lo schermo"
-
-#: contents/ui/MenuRepresentation.qml:1137
-msgid "Lock the screen"
-msgstr "Blocca lo schermo"
-
-#: contents/ui/MenuRepresentation.qml:1145
-msgid "Log out"
-msgstr "Esci"
-
-#: contents/ui/Footer.qml:605
-msgid "Manage my account"
-msgstr "Gestisci il mio account"
+msgid "Small"
+msgstr "Piccola"
 
 #: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
 msgid "Medium"
 msgstr "Media"
 
-#: contents/ui/KdeConnectPanel.qml:1445
-msgid "Message"
-msgstr "Messaggio"
+#: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
+msgid "Large"
+msgstr "Grande"
 
-#: contents/ui/MenuRepresentation.qml:1129
-msgid "Midday picks"
-msgstr "Selezione di mezzogiorno"
+#: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
+msgid "Huge"
+msgstr "Molto grande"
 
-#: contents/ui/ConfigGeneral.qml:237
-msgid "Mobile panel:"
-msgstr "Pannello mobile:"
+#: contents/ui/ConfigGeneral.qml:189
+msgid "Docs icon size:"
+msgstr "Dimensione icone dei documenti:"
 
-#: contents/ui/MenuRepresentation.qml:1107
-msgid "Monday"
-msgstr "lunedì"
-
-#: contents/ui/KdeConnectPanel.qml:1865
-msgid "More options"
-msgstr "Altre opzioni"
-
-#: contents/ui/KdeConnectPanel.qml:1363
-msgid "Name or number"
-msgstr "Nome o numero"
-
-#: contents/ui/ItemGridDelegate.qml:232
-msgid "New"
-msgstr "Nuovo"
-
-#: contents/ui/MenuRepresentation.qml:1544
-msgid "New application"
-msgstr "Nuova applicazione"
-
-#: contents/ui/MenuRepresentation.qml:4288
-#: contents/ui/MenuRepresentation.qml:4774
-msgid "New folder"
-msgstr "Nuova cartella"
-
-#: contents/ui/Footer.qml:532
-msgid "No other users"
-msgstr "Nessun altro utente"
-
-#: contents/ui/MenuRepresentation.qml:3521
-msgid "No recent documents this week"
-msgstr "Nessun documento recente questa settimana"
-
-#: contents/ui/MenuRepresentation.qml:2727
-msgid "No recently accessed files yet"
-msgstr "Ancora nessun file recente"
-
-#: contents/ui/MenuRepresentation.qml:3436
-msgid "No results for \"%1\""
-msgstr "Nessun risultato per «%1»"
-
-#: contents/ui/MenuRepresentation.qml:3432
-msgid "No results for \"%1\" in %2"
-msgstr "Nessun risultato per «%1» in %2"
+#: contents/ui/ConfigGeneral.qml:197
+msgid "Show labels in two lines"
+msgstr "Mostra i nomi su due righe"
 
 #: contents/ui/ConfigGeneral.qml:207
 msgid "Number of columns"
@@ -452,171 +70,201 @@ msgstr "Numero di colonne"
 msgid "Number of rows"
 msgstr "Numero di righe"
 
-#: contents/ui/KdeConnectPanel.qml:1253
-msgid "Offline"
-msgstr "Non in linea"
-
-#: contents/ui/code/tools.js:78
-msgid "On All Activities"
-msgstr "In tutte le attività"
-
-#: contents/ui/KdeConnectPanel.qml:1166
-msgid "On iPhone, KDE Connect offers fewer features than on Android."
-msgstr "Su iPhone, KDE Connect offre meno funzioni che su Android."
-
-#. Adding the item to link/unlink to the current activity
-#: contents/ui/code/tools.js:128
-msgid "On the Current Activity"
-msgstr "Nell'attività corrente"
-
-#: contents/ui/MenuRepresentation.qml:2052
-msgid "Open Files"
-msgstr "Apri i file"
-
-#: contents/ui/KdeConnectPanel.qml:1899
-msgid "Open KDE Connect"
-msgstr "Apri KDE Connect"
-
-#: contents/ui/MenuRepresentation.qml:1142
-msgid "Open System Settings"
-msgstr "Apri le Impostazioni di sistema"
-
-#: contents/ui/MenuRepresentation.qml:2051
-msgid "Open Terminal"
-msgstr "Apri un terminale"
-
-#: contents/ui/MenuRepresentation.qml:1144
-msgid "Open a terminal"
-msgstr "Apri un terminale"
-
-#: contents/ui/MenuRepresentation.qml:1143
-msgid "Open file manager"
-msgstr "Apri il gestore dei file"
-
-#: contents/ui/KdeConnectPanel.qml:245
-msgid "Opening the phone's files…"
-msgstr "Apertura dei file del telefono…"
-
-#: contents/ui/MenuRepresentation.qml:1169
-msgid "Opens default browser"
-msgstr "Apre il browser predefinito"
-
-#: contents/ui/Footer.qml:434
-msgid "Other users"
-msgstr "Altri utenti"
-
-#: contents/ui/KdeConnectPanel.qml:1363
-msgid "Phone number"
-msgstr "Numero di telefono"
-
-#: contents/ui/ItemGridDelegateColumns.qml:280
-msgid "Pin to Start"
-msgstr "Aggiungi a Start"
-
-#: contents/ui/KdeConnectPanel.qml:1341
-msgid "Ping"
-msgstr "Ping"
-
-#: contents/ui/KdeConnectPanel.qml:236
-msgid "Ping sent"
-msgstr "Ping inviato"
-
-#: contents/ui/MenuRepresentation.qml:2203
-msgid "Pinned"
-msgstr "Aggiunte"
-
-#: contents/ui/Footer.qml:690
-msgid "Power"
-msgstr "Alimentazione"
-
-#: contents/ui/MenuRepresentation.qml:3428
-msgid "Press Enter to run: %1"
-msgstr "Premi Invio per eseguire: %1"
+#: contents/ui/ConfigGeneral.qml:220
+msgid "All Apps"
+msgstr "Tutte le app"
 
 #: contents/ui/ConfigGeneral.qml:225
 msgid "Recent Documents:"
 msgstr "Documenti recenti:"
 
-#: contents/ui/KdeConnectPanel.qml:1693
-msgid "Recent notifications"
-msgstr "Notifiche recenti"
+#: contents/ui/ConfigGeneral.qml:226
+msgid "Show Recent Documents section"
+msgstr "Mostra la sezione Documenti recenti"
 
-#: contents/ui/MenuRepresentation.qml:2643
-#: contents/ui/MenuRepresentation.qml:3464
-msgid "Recommended"
-msgstr "Consigliati"
+#: contents/ui/ConfigGeneral.qml:232 contents/ui/MenuRepresentation.qml:2373
+msgid "KDE Connect"
+msgstr "KDE Connect"
 
-#: contents/ui/KdeConnectPanel.qml:1314
-msgid "Refresh"
-msgstr "Aggiorna"
+#: contents/ui/ConfigGeneral.qml:237
+msgid "Mobile panel:"
+msgstr "Pannello mobile:"
 
-#: contents/ui/code/tools.js:50
-msgid "Remove from Favorites"
-msgstr "Rimuovi dai preferiti"
+#: contents/ui/ConfigGeneral.qml:238
+msgid "Keep the mobile panel open between menu openings"
+msgstr "Mantieni aperto il pannello mobile tra un'apertura del menu e l'altra"
 
-#: contents/ui/MenuRepresentation.qml:4882
-msgid "Rename"
-msgstr "Rinomina"
+#: contents/ui/ConfigGeneral.qml:243
+msgid "Show KDE Connect button next to search"
+msgstr "Mostra il pulsante KDE Connect accanto alla ricerca"
 
-#: contents/ui/MenuRepresentation.qml:4510
-#: contents/ui/MenuRepresentation.qml:4860
-msgid "Rename Folder"
-msgstr "Rinomina la cartella"
+#: contents/ui/ConfigGeneral.qml:248 contents/ui/KdeConnectPanel.qml:1178
+msgid "Search"
+msgstr "Cerca"
 
-#: contents/ui/MenuRepresentation.qml:4433
-#: contents/ui/MenuRepresentation.qml:4717
-msgid "Rename folder"
-msgstr "Rinomina la cartella"
+#: contents/ui/ConfigGeneral.qml:253
+msgid "Home page:"
+msgstr "Pagina iniziale:"
 
-#: contents/ui/KdeConnectPanel.qml:1781
-msgid "Reply"
-msgstr "Rispondi"
+#: contents/ui/ConfigGeneral.qml:254
+msgid "Show recently opened apps"
+msgstr "Mostra le app aperte di recente"
 
-#: contents/ui/KdeConnectPanel.qml:385
-msgid "Reply sent"
-msgstr "Risposta inviata"
+#: contents/ui/ConfigGeneral.qml:259
+msgid "Enable shell command runner ( > cmd )"
+msgstr "Abilita l'esecuzione di comandi ( > cmd )"
+
+#: contents/ui/ConfigGeneral.qml:264
+msgid "Show Quick Actions bar (Screenshot, Lock, Terminal…)"
+msgstr "Mostra la barra delle azioni rapide (schermata, blocco, terminale…)"
+
+#: contents/ui/ConfigGeneral.qml:269
+msgid "Footer power buttons"
+msgstr "Pulsanti di alimentazione nel piè di pagina"
+
+#: contents/ui/ConfigGeneral.qml:274
+msgid "Show:"
+msgstr "Mostra:"
+
+#: contents/ui/ConfigGeneral.qml:275
+msgid "Sleep / Suspend"
+msgstr "Sospendi"
 
 #: contents/ui/ConfigGeneral.qml:280 contents/ui/Footer.qml:883
 msgid "Restart"
 msgstr "Riavvia"
 
-#: contents/ui/MenuRepresentation.qml:1139
-msgid "Restart the computer"
-msgstr "Riavvia il computer"
+#: contents/ui/ConfigGeneral.qml:285
+msgid "Shutdown"
+msgstr "Arresta"
 
-#: contents/ui/KdeConnectPanel.qml:1334
-msgid "Ring"
-msgstr "Fai squillare"
+#: contents/ui/ConfigGeneral.qml:292
+msgid "Unhide all hidden applications"
+msgstr "Mostra di nuovo tutte le applicazioni nascoste"
 
-#: contents/ui/KdeConnectPanel.qml:1340
-msgid "SMS"
-msgstr "SMS"
+#: contents/ui/ConfigGeneral.qml:295
+msgid "Unhidden!"
+msgstr "Di nuovo visibili!"
 
-#: contents/ui/MenuRepresentation.qml:1108
-msgid "Saturday"
-msgstr "sabato"
+#: contents/ui/Footer.qml:336
+msgid "Sign out"
+msgstr "Esci"
 
-#: contents/ui/MenuRepresentation.qml:4532
-msgid "Save"
-msgstr "Salva"
+#: contents/ui/Footer.qml:434
+msgid "Other users"
+msgstr "Altri utenti"
 
-#: contents/ui/MenuRepresentation.qml:2049
-msgid "Screenshot"
-msgstr "Schermata"
+#: contents/ui/Footer.qml:532
+msgid "No other users"
+msgstr "Nessun altro utente"
 
-#: contents/ui/ConfigGeneral.qml:248 contents/ui/KdeConnectPanel.qml:1179
-msgid "Search"
-msgstr "Cerca"
+#: contents/ui/Footer.qml:596
+msgid "Local account"
+msgstr "Account locale"
 
-#: contents/ui/MenuRepresentation.qml:1656
-msgid "Search for apps, settings and documents"
-msgstr "Cerca app, impostazioni e documenti"
+#: contents/ui/Footer.qml:605
+msgid "Manage my account"
+msgstr "Gestisci il mio account"
 
-#: contents/ui/MenuRepresentation.qml:1168
-msgid "Search the web for \"%1\""
-msgstr "Cerca «%1» sul web"
+#: contents/ui/Footer.qml:690
+msgid "Power"
+msgstr "Alimentazione"
 
-#: contents/ui/KdeConnectPanel.qml:1115
+#: contents/ui/Footer.qml:754
+msgid "Lock"
+msgstr "Blocca"
+
+#: contents/ui/Footer.qml:797
+msgid "Sleep"
+msgstr "Sospendi"
+
+#: contents/ui/Footer.qml:840
+msgid "Shut down"
+msgstr "Arresta"
+
+#: contents/ui/ItemGridDelegate.qml:361
+msgid "New"
+msgstr "Nuovo"
+
+#: contents/ui/ItemGridDelegateColumns.qml:288
+msgid "Unpin from Start"
+msgstr "Rimuovi da Start"
+
+#: contents/ui/ItemGridDelegateColumns.qml:288
+msgid "Pin to Start"
+msgstr "Aggiungi a Start"
+
+#: contents/ui/KdeConnectPanel.qml:234
+msgid "The phone is ringing…"
+msgstr "Il telefono sta squillando…"
+
+#: contents/ui/KdeConnectPanel.qml:235
+msgid "Hello from the PC"
+msgstr "Ciao dal PC"
+
+#: contents/ui/KdeConnectPanel.qml:235
+msgid "Ping sent"
+msgstr "Ping inviato"
+
+#: contents/ui/KdeConnectPanel.qml:236
+msgid "Clipboard sent"
+msgstr "Appunti inviati"
+
+#: contents/ui/KdeConnectPanel.qml:244
+msgid "Opening the phone's files…"
+msgstr "Apertura dei file del telefono…"
+
+#: contents/ui/KdeConnectPanel.qml:254
+msgid "File sent"
+msgid_plural "%1 files sent"
+msgstr[0] "File inviato"
+msgstr[1] "%1 file inviati"
+
+#: contents/ui/KdeConnectPanel.qml:263
+msgid "Link sent: it opens on the phone"
+msgstr "Link inviato: si apre sul telefono"
+
+#: contents/ui/KdeConnectPanel.qml:266
+msgid "Text sent"
+msgstr "Testo inviato"
+
+#: contents/ui/KdeConnectPanel.qml:283
+msgid "Take the photo on the phone: it will open here."
+msgstr "Scatta la foto con il telefono: si aprirà qui."
+
+#: contents/ui/KdeConnectPanel.qml:384
+msgid "Reply sent"
+msgstr "Risposta inviata"
+
+#: contents/ui/KdeConnectPanel.qml:457
+msgid "Choose a contact from the list or type a number"
+msgstr "Scegli un contatto dall'elenco o digita un numero"
+
+#: contents/ui/KdeConnectPanel.qml:461
+msgid "Sending SMS…"
+msgstr "Invio dell'SMS…"
+
+#: contents/ui/KdeConnectPanel.qml:1015
+msgid "Send to phone"
+msgstr "Invia al telefono"
+
+#: contents/ui/KdeConnectPanel.qml:1050
+msgid "✓ SMS handed over to the phone"
+msgstr "✓ SMS consegnato al telefono"
+
+#: contents/ui/KdeConnectPanel.qml:1055
+msgid "✗ Failed: SMS not handed over to the phone"
+msgstr "✗ Errore: SMS non consegnato al telefono"
+
+#: contents/ui/KdeConnectPanel.qml:1103
+msgid "Access your mobile device here"
+msgstr "Accedi qui al tuo dispositivo mobile"
+
+#: contents/ui/KdeConnectPanel.qml:1113
+msgid "The qdbus tool was not found: unable to talk to KDE Connect."
+msgstr "Strumento qdbus non trovato: impossibile comunicare con KDE Connect."
+
+#: contents/ui/KdeConnectPanel.qml:1114
 msgid ""
 "See your phone's battery, files and notifications right in the Start menu, "
 "thanks to KDE Connect."
@@ -624,243 +272,555 @@ msgstr ""
 "Batteria, file e notifiche del telefono direttamente nel menu Start, grazie "
 "a KDE Connect."
 
-#: contents/ui/KdeConnectPanel.qml:1121
+#: contents/ui/KdeConnectPanel.qml:1120
 msgid "Select your device"
 msgstr "Seleziona il dispositivo"
 
-#: contents/ui/KdeConnectPanel.qml:1468 contents/ui/KdeConnectPanel.qml:1498
-msgid "Send"
-msgstr "Invia"
+#: contents/ui/KdeConnectPanel.qml:1143
+msgid "Connect an iPhone"
+msgstr "Collega un iPhone"
 
-#: contents/ui/KdeConnectPanel.qml:1338
-msgid "Send a link"
-msgstr "Invia un link"
+#: contents/ui/KdeConnectPanel.qml:1143
+msgid "Connect an Android phone"
+msgstr "Collega un telefono Android"
 
-#: contents/ui/KdeConnectPanel.qml:1335
+#: contents/ui/KdeConnectPanel.qml:1155
+msgid "1. Install the KDE Connect app from the App Store.\n"
+msgstr "1. Installa l'app KDE Connect dall'App Store.\n"
+
+#: contents/ui/KdeConnectPanel.qml:1156
+msgid "1. Install the KDE Connect app from the Play Store or F-Droid.\n"
+msgstr "1. Installa l'app KDE Connect dal Play Store o da F-Droid.\n"
+
+#: contents/ui/KdeConnectPanel.qml:1157
+msgid ""
+"2. Connect the phone to the same Wi-Fi network as this PC (or connect this "
+"PC to the phone's hotspot).\n"
+msgstr ""
+"2. Collega il telefono alla stessa rete Wi-Fi di questo PC (o questo PC "
+"all'hotspot del telefono).\n"
+
+#: contents/ui/KdeConnectPanel.qml:1158
+msgid "3. In the app, tap the name of this PC, then “Request pairing”.\n"
+msgstr ""
+"3. Nell'app, tocca il nome di questo PC, poi “Richiedi associazione”.\n"
+"3. Nell'app, tocca il nome di questo PC e poi «Richiedi associazione».\n"
+
+#: contents/ui/KdeConnectPanel.qml:1159
+msgid "4. Accept the request that appears on this PC."
+msgstr "4. Accetta la richiesta che compare su questo PC."
+
+#: contents/ui/KdeConnectPanel.qml:1165
+msgid "On iPhone, KDE Connect offers fewer features than on Android."
+msgstr "Su iPhone, KDE Connect offre meno funzioni che su Android."
+
+#: contents/ui/KdeConnectPanel.qml:1173
+msgid "Download"
+msgstr "Scarica"
+
+#: contents/ui/KdeConnectPanel.qml:1186
+msgid "< Back"
+msgstr "< Indietro"
+
+#: contents/ui/KdeConnectPanel.qml:1258
+msgid "Connected"
+msgstr "Connesso"
+
+#: contents/ui/KdeConnectPanel.qml:1258
+msgid "Offline"
+msgstr "Non in linea"
+
+#: contents/ui/KdeConnectPanel.qml:1319
+msgid "Refresh"
+msgstr "Aggiorna"
+
+#: contents/ui/KdeConnectPanel.qml:1339
+msgid "Ring"
+msgstr "Fai squillare"
+
+#: contents/ui/KdeConnectPanel.qml:1340
 msgid "Send files"
 msgstr "Invia file"
 
-#: contents/ui/KdeConnectPanel.qml:1016
-msgid "Send to phone"
-msgstr "Invia al telefono"
+#: contents/ui/KdeConnectPanel.qml:1341
+msgid "Browse"
+msgstr "Sfoglia"
 
-#: contents/ui/KdeConnectPanel.qml:462
-msgid "Sending SMS…"
-msgstr "Invio dell'SMS…"
+#: contents/ui/KdeConnectPanel.qml:1342
+msgid "Clipboard"
+msgstr "Appunti"
 
-#: contents/ui/KdeConnectPanel.qml:1342 contents/ui/MenuRepresentation.qml:2972
-#: contents/ui/MenuRepresentation.qml:3434
+#: contents/ui/KdeConnectPanel.qml:1343
+msgid "Send a link"
+msgstr "Invia un link"
+
+#: contents/ui/KdeConnectPanel.qml:1344
+msgid "Take a photo"
+msgstr "Scatta una foto"
+
+#: contents/ui/KdeConnectPanel.qml:1345
+msgid "SMS"
+msgstr "SMS"
+
+#: contents/ui/KdeConnectPanel.qml:1346
+msgid "Ping"
+msgstr "Ping"
+
+#: contents/ui/KdeConnectPanel.qml:1347 contents/ui/MenuRepresentation.qml:3164
+#: contents/ui/MenuRepresentation.qml:3612
 msgid "Settings"
 msgstr "Impostazioni"
 
-#: contents/ui/ConfigGeneral.qml:243
-msgid "Show KDE Connect button next to search"
-msgstr "Mostra il pulsante KDE Connect accanto alla ricerca"
+#: contents/ui/KdeConnectPanel.qml:1361
+msgid "To: %1"
+msgstr "A: %1"
 
-#: contents/ui/ConfigGeneral.qml:264
-msgid "Show Quick Actions bar (Screenshot, Lock, Terminal…)"
-msgstr "Mostra la barra delle azioni rapide (schermata, blocco, terminale…)"
+#: contents/ui/KdeConnectPanel.qml:1368
+msgid "Name or number"
+msgstr "Nome o numero"
 
-#: contents/ui/ConfigGeneral.qml:226
-msgid "Show Recent Documents section"
-msgstr "Mostra la sezione Documenti recenti"
+#: contents/ui/KdeConnectPanel.qml:1368
+msgid "Phone number"
+msgstr "Numero di telefono"
 
-#: contents/ui/MenuRepresentation.qml:2656
+#: contents/ui/KdeConnectPanel.qml:1450
+msgid "Message"
+msgstr "Messaggio"
+
+#: contents/ui/KdeConnectPanel.qml:1469 contents/ui/KdeConnectPanel.qml:1499
+#: contents/ui/MenuRepresentation.qml:4726
+#: contents/ui/MenuRepresentation.qml:5036
+#: contents/ui/MenuRepresentation.qml:5111
+msgid "Cancel"
+msgstr "Annulla"
+
+#: contents/ui/KdeConnectPanel.qml:1473 contents/ui/KdeConnectPanel.qml:1503
+msgid "Send"
+msgstr "Invia"
+
+#: contents/ui/KdeConnectPanel.qml:1491
+msgid "Web link or text to send"
+msgstr "Link web o testo da inviare"
+
+#: contents/ui/KdeConnectPanel.qml:1679
+msgid "The phone is offline: check that it is on the same network."
+msgstr "Il telefono non è in linea: controlla che sia sulla stessa rete."
+
+#: contents/ui/KdeConnectPanel.qml:1698
+msgid "Recent notifications"
+msgstr "Notifiche recenti"
+
+#: contents/ui/KdeConnectPanel.qml:1786
+msgid "Reply"
+msgstr "Rispondi"
+
+#: contents/ui/KdeConnectPanel.qml:1799
+msgid "Your reply"
+msgstr "La tua risposta"
+
+#: contents/ui/KdeConnectPanel.qml:1819
+msgid "Dismiss notification"
+msgstr "Rimuovi la notifica"
+
+#: contents/ui/KdeConnectPanel.qml:1870
+msgid "More options"
+msgstr "Altre opzioni"
+
+#: contents/ui/KdeConnectPanel.qml:1904
+msgid "Open KDE Connect"
+msgstr "Apri KDE Connect"
+
+#: contents/ui/KdeConnectPanel.qml:1910
+msgid "KDE Connect settings"
+msgstr "Impostazioni di KDE Connect"
+
+#: contents/ui/KdeConnectPanel.qml:1915
+msgid "Hide this panel"
+msgstr "Nascondi questo pannello"
+
+#: contents/ui/MenuRepresentation.qml:696
+msgid "Good morning"
+msgstr "Buongiorno"
+
+#: contents/ui/MenuRepresentation.qml:697
+msgid "Good afternoon"
+msgstr "Buon pomeriggio"
+
+#: contents/ui/MenuRepresentation.qml:698
+msgid "Good evening"
+msgstr "Buonasera"
+
+#: contents/ui/MenuRepresentation.qml:735
+msgid "Folder"
+msgstr "Cartella"
+
+#: contents/ui/MenuRepresentation.qml:1074
+#: contents/ui/MenuRepresentation.qml:1141
+msgid "%1 app"
+msgid_plural "%1 apps"
+msgstr[0] "%1 app"
+msgstr[1] "%1 app"
+
+#: contents/ui/MenuRepresentation.qml:1378
+msgid "Sunday"
+msgstr "domenica"
+
+#: contents/ui/MenuRepresentation.qml:1378
+msgid "Monday"
+msgstr "lunedì"
+
+#: contents/ui/MenuRepresentation.qml:1378
+msgid "Tuesday"
+msgstr "martedì"
+
+#: contents/ui/MenuRepresentation.qml:1379
+msgid "Wednesday"
+msgstr "mercoledì"
+
+#: contents/ui/MenuRepresentation.qml:1379
+msgid "Thursday"
+msgstr "giovedì"
+
+#: contents/ui/MenuRepresentation.qml:1379
+msgid "Friday"
+msgstr "venerdì"
+
+#: contents/ui/MenuRepresentation.qml:1379
+msgid "Saturday"
+msgstr "sabato"
+
+#: contents/ui/MenuRepresentation.qml:1382
+msgid "%1 night session"
+msgstr "Notte di %1"
+
+#: contents/ui/MenuRepresentation.qml:1383
+msgid "%1 morning picks"
+msgstr "Selezione di %1 mattina"
+
+#: contents/ui/MenuRepresentation.qml:1384
+msgid "%1 afternoon picks"
+msgstr "Selezione di %1 pomeriggio"
+
+#: contents/ui/MenuRepresentation.qml:1385
+msgid "%1 evening picks"
+msgstr "Selezione di %1 sera"
+
+#: contents/ui/MenuRepresentation.qml:1394
+msgid "Your top picks"
+msgstr "I tuoi preferiti"
+
+#: contents/ui/MenuRepresentation.qml:1395
+msgid "Frequently used"
+msgstr "Usate spesso"
+
+#: contents/ui/MenuRepresentation.qml:1398
+msgid "Your morning session"
+msgstr "La tua sessione del mattino"
+
+#: contents/ui/MenuRepresentation.qml:1399
+msgid "Good morning apps"
+msgstr "App del mattino"
+
+#: contents/ui/MenuRepresentation.qml:1400
+msgid "Midday picks"
+msgstr "Selezione di mezzogiorno"
+
+#: contents/ui/MenuRepresentation.qml:1401
+msgid "Afternoon session"
+msgstr "Sessione del pomeriggio"
+
+#: contents/ui/MenuRepresentation.qml:1402
+msgid "Evening apps"
+msgstr "App della sera"
+
+#: contents/ui/MenuRepresentation.qml:1403
+msgid "Late night"
+msgstr "Notte fonda"
+
+#: contents/ui/MenuRepresentation.qml:1408
+msgid "Lock the screen"
+msgstr "Blocca lo schermo"
+
+#: contents/ui/MenuRepresentation.qml:1409
+msgid "Suspend to RAM"
+msgstr "Sospendi"
+
+#: contents/ui/MenuRepresentation.qml:1410
+msgid "Restart the computer"
+msgstr "Riavvia il computer"
+
+#: contents/ui/MenuRepresentation.qml:1411
+msgid "Shut down the computer"
+msgstr "Arresta il computer"
+
+#: contents/ui/MenuRepresentation.qml:1412
+msgid "Take a screenshot"
+msgstr "Cattura una schermata"
+
+#: contents/ui/MenuRepresentation.qml:1413
+msgid "Open System Settings"
+msgstr "Apri le Impostazioni di sistema"
+
+#: contents/ui/MenuRepresentation.qml:1414
+msgid "Open file manager"
+msgstr "Apri il gestore dei file"
+
+#: contents/ui/MenuRepresentation.qml:1415
+msgid "Open a terminal"
+msgstr "Apri un terminale"
+
+#: contents/ui/MenuRepresentation.qml:1416
+msgid "Log out"
+msgstr "Esci"
+
+#: contents/ui/MenuRepresentation.qml:1572
+msgid "today at %1"
+msgstr "oggi alle %1"
+
+#: contents/ui/MenuRepresentation.qml:1573
+msgid "yesterday at %1"
+msgstr "ieri alle %1"
+
+#: contents/ui/MenuRepresentation.qml:1574
+msgid "%1 at %2"
+msgstr "%1 alle %2"
+
+#: contents/ui/MenuRepresentation.qml:1583
+msgid "Just now"
+msgstr "Adesso"
+
+#: contents/ui/MenuRepresentation.qml:1584
+msgid "%1 min ago"
+msgstr "%1 min fa"
+
+#: contents/ui/MenuRepresentation.qml:1585
+msgid "%1 h ago"
+msgstr "%1 h fa"
+
+#: contents/ui/MenuRepresentation.qml:1835
+msgid "New application"
+msgstr "Nuova applicazione"
+
+#: contents/ui/MenuRepresentation.qml:1836
+msgid "%1 is installed — filed under “%2”"
+msgstr "%1 è installata — inserita in «%2»"
+
+#: contents/ui/MenuRepresentation.qml:1839
+msgid "%1 new application"
+msgid_plural "%1 new applications"
+msgstr[0] "%1 nuova applicazione"
+msgstr[1] "%1 nuove applicazioni"
+
+#: contents/ui/MenuRepresentation.qml:2008
+msgid "Search for apps, settings and documents"
+msgstr "Cerca app, impostazioni e documenti"
+
+#: contents/ui/MenuRepresentation.qml:2401
+msgid "Screenshot"
+msgstr "Schermata"
+
+#: contents/ui/MenuRepresentation.qml:2402
+msgid "Lock Screen"
+msgstr "Blocca lo schermo"
+
+#: contents/ui/MenuRepresentation.qml:2403
+msgid "Open Terminal"
+msgstr "Apri un terminale"
+
+#: contents/ui/MenuRepresentation.qml:2404
+msgid "Open Files"
+msgstr "Apri i file"
+
+#: contents/ui/MenuRepresentation.qml:2405
+msgid "Calculator"
+msgstr "Calcolatrice"
+
+#: contents/ui/MenuRepresentation.qml:2406
+msgid "System Settings"
+msgstr "Impostazioni di sistema"
+
+#: contents/ui/MenuRepresentation.qml:2555
+msgid "Pinned"
+msgstr "Aggiunte"
+
+#: contents/ui/MenuRepresentation.qml:2568
+msgid "Show more"
+msgstr "Mostra di più"
+
+#: contents/ui/MenuRepresentation.qml:2568
+msgid "Show less"
+msgstr "Mostra meno"
+
+#: contents/ui/MenuRepresentation.qml:2835
+#: contents/ui/MenuRepresentation.qml:3642
+msgid "Recommended"
+msgstr "Consigliati"
+
+#: contents/ui/MenuRepresentation.qml:2848
 msgid "Show all"
 msgstr "Mostra tutto"
+
+#: contents/ui/MenuRepresentation.qml:2919
+msgid "No recently accessed files yet"
+msgstr "Ancora nessun file recente"
+
+#: contents/ui/MenuRepresentation.qml:2987
+#: contents/ui/MenuRepresentation.qml:3161
+msgid "All"
+msgstr "Tutto"
+
+#: contents/ui/MenuRepresentation.qml:2996
+#: contents/ui/MenuRepresentation.qml:3769
+msgid "List"
+msgstr "Elenco"
+
+#: contents/ui/MenuRepresentation.qml:2996
+#: contents/ui/MenuRepresentation.qml:3768
+msgid "Grid"
+msgstr "Griglia"
+
+#: contents/ui/MenuRepresentation.qml:2996
+#: contents/ui/MenuRepresentation.qml:3767
+msgid "Categories"
+msgstr "Categorie"
+
+#: contents/ui/MenuRepresentation.qml:2996
+msgid "View: %1"
+msgstr "Vista: %1"
+
+#: contents/ui/MenuRepresentation.qml:3162
+#: contents/ui/MenuRepresentation.qml:3612
+msgid "Apps"
+msgstr "App"
+
+#: contents/ui/MenuRepresentation.qml:3163
+#: contents/ui/MenuRepresentation.qml:3612
+msgid "Files"
+msgstr "File"
+
+#: contents/ui/MenuRepresentation.qml:3165
+#: contents/ui/MenuRepresentation.qml:3612
+msgid "Actions"
+msgstr "Azioni"
+
+#: contents/ui/MenuRepresentation.qml:3342
+msgid "Enter or click to copy result"
+msgstr "Invio o clic per copiare il risultato"
+
+#: contents/ui/MenuRepresentation.qml:3366
+msgid "Type a command  ·  ↓ navigate  ·  /calc expr  ·  Enter run"
+msgstr "Digita un comando  ·  ↓ naviga  ·  /calc espr  ·  Invio esegui"
+
+#: contents/ui/MenuRepresentation.qml:3606
+msgid "Press Enter to run: %1"
+msgstr "Premi Invio per eseguire: %1"
+
+#: contents/ui/MenuRepresentation.qml:3607
+msgid "Type a shell command after '>'"
+msgstr "Digita un comando dopo «>»"
+
+#: contents/ui/MenuRepresentation.qml:3610
+msgid "No results for \"%1\" in %2"
+msgstr "Nessun risultato per «%1» in %2"
+
+#: contents/ui/MenuRepresentation.qml:3614
+msgid "No results for \"%1\""
+msgstr "Nessun risultato per «%1»"
+
+#: contents/ui/MenuRepresentation.qml:3652
+#: contents/ui/MenuRepresentation.qml:4166
+msgid "Back"
+msgstr "Indietro"
+
+#: contents/ui/MenuRepresentation.qml:3699
+msgid "No recent documents this week"
+msgstr "Nessun documento recente questa settimana"
+
+#: contents/ui/MenuRepresentation.qml:4562
+#: contents/ui/MenuRepresentation.qml:4936
+msgid "Drag apps here to add them"
+msgstr "Trascina qui le app per aggiungerle"
+
+#: contents/ui/MenuRepresentation.qml:4612
+#: contents/ui/MenuRepresentation.qml:5008
+msgid "New folder"
+msgstr "Nuova cartella"
+
+#: contents/ui/MenuRepresentation.qml:4621
+#: contents/ui/MenuRepresentation.qml:5017
+msgid "Folder name"
+msgstr "Nome della cartella"
+
+#: contents/ui/MenuRepresentation.qml:4625
+msgid "Choose from pinned apps:"
+msgstr "Scegli tra le app aggiunte:"
+
+#: contents/ui/MenuRepresentation.qml:4731
+#: contents/ui/MenuRepresentation.qml:5041
+msgid "Create"
+msgstr "Crea"
+
+#: contents/ui/MenuRepresentation.qml:4758
+#: contents/ui/MenuRepresentation.qml:4965
+msgid "Delete folder"
+msgstr "Elimina la cartella"
+
+#: contents/ui/MenuRepresentation.qml:4769
+msgid "Unpin all apps in folder"
+msgstr "Rimuovi tutte le app della cartella"
+
+#: contents/ui/MenuRepresentation.qml:4951
+msgid "Rename folder"
+msgstr "Rinomina la cartella"
+
+#: contents/ui/MenuRepresentation.qml:5025
+msgid "Drag apps from the list into this folder to add them."
+msgstr "Trascina le app dall'elenco in questa cartella per aggiungerle."
+
+#: contents/ui/MenuRepresentation.qml:5094
+msgid "Rename Folder"
+msgstr "Rinomina la cartella"
+
+#: contents/ui/MenuRepresentation.qml:5116
+msgid "Rename"
+msgstr "Rinomina"
+
+#: contents/ui/MenuRepresentation.qml:5239
+msgid "Add apps — %1"
+msgstr "Aggiungi app — %1"
+
+#: contents/ui/MenuRepresentation.qml:5240
+msgid "Add apps to folder"
+msgstr "Aggiungi app alla cartella"
+
+#: contents/ui/MenuRepresentation.qml:5250
+msgid "Filter…"
+msgstr "Filtra…"
+
+#: contents/ui/RecentDocDelegate.qml:63
+msgid "Home Folder"
+msgstr "Cartella home"
+
+#: contents/ui/main.qml:343
+msgid "Edit Applications…"
+msgstr "Modifica applicazioni…"
+
+#: contents/ui/code/tools.js:50
+msgid "Remove from Favorites"
+msgstr "Rimuovi dai preferiti"
+
+#: contents/ui/code/tools.js:54
+msgid "Add to Favorites"
+msgstr "Aggiungi ai preferiti"
+
+#: contents/ui/code/tools.js:78
+msgid "On All Activities"
+msgstr "In tutte le attività"
+
+#: contents/ui/code/tools.js:128
+msgid "On the Current Activity"
+msgstr "Nell'attività corrente"
 
 #: contents/ui/code/tools.js:142
 msgid "Show in Favorites"
 msgstr "Mostra nei preferiti"
-
-#: contents/ui/ConfigGeneral.qml:197
-msgid "Show labels in two lines"
-msgstr "Mostra i nomi su due righe"
-
-#: contents/ui/MenuRepresentation.qml:2216
-msgid "Show less"
-msgstr "Mostra meno"
-
-#: contents/ui/MenuRepresentation.qml:2216
-msgid "Show more"
-msgstr "Mostra di più"
-
-#: contents/ui/ConfigGeneral.qml:254
-msgid "Show recently opened apps"
-msgstr "Mostra le app aperte di recente"
-
-#: contents/ui/ConfigGeneral.qml:274
-msgid "Show:"
-msgstr "Mostra:"
-
-#: contents/ui/Footer.qml:840
-msgid "Shut down"
-msgstr "Arresta"
-
-#: contents/ui/MenuRepresentation.qml:1140
-msgid "Shut down the computer"
-msgstr "Arresta il computer"
-
-#: contents/ui/ConfigGeneral.qml:285
-msgid "Shutdown"
-msgstr "Arresta"
-
-#: contents/ui/Footer.qml:336
-msgid "Sign out"
-msgstr "Esci"
-
-#: contents/ui/Footer.qml:797
-msgid "Sleep"
-msgstr "Sospendi"
-
-#: contents/ui/ConfigGeneral.qml:275
-msgid "Sleep / Suspend"
-msgstr "Sospendi"
-
-#: contents/ui/ConfigGeneral.qml:184 contents/ui/ConfigGeneral.qml:191
-msgid "Small"
-msgstr "Piccola"
-
-#. Infobulle « Démarrer » au survol du bouton de la barre des tâches : on passe par
-#. l'infobulle NATIVE de Plasma (positionnée par le shell juste au-dessus du bouton),
-#. et non par un PC3.ToolTip interne, qui se plaçait au mauvais endroit.
-#. Plasma 6 : toolTipMainText est une propriété DIRECTE du PlasmoidItem racine
-#. (plus de préfixe « Plasmoid. », qui visait l'ancien objet attaché de Plasma 5).
-#: contents/ui/CompactRepresentation.qml:255 contents/ui/main.qml:72
-msgid "Start"
-msgstr "Avvia"
-
-#: contents/ui/MenuRepresentation.qml:1107
-msgid "Sunday"
-msgstr "domenica"
-
-#: contents/ui/MenuRepresentation.qml:1138
-msgid "Suspend to RAM"
-msgstr "Sospendi"
-
-#: contents/ui/MenuRepresentation.qml:2054
-msgid "System Settings"
-msgstr "Impostazioni di sistema"
-
-#: contents/ui/KdeConnectPanel.qml:1339
-msgid "Take a photo"
-msgstr "Scatta una foto"
-
-#: contents/ui/MenuRepresentation.qml:1141
-msgid "Take a screenshot"
-msgstr "Cattura una schermata"
-
-#: contents/ui/KdeConnectPanel.qml:284
-msgid "Take the photo on the phone: it will open here."
-msgstr "Scatta la foto con il telefono: si aprirà qui."
-
-#: contents/ui/KdeConnectPanel.qml:267
-msgid "Text sent"
-msgstr "Testo inviato"
-
-#: contents/ui/KdeConnectPanel.qml:1674
-msgid "The phone is offline: check that it is on the same network."
-msgstr "Il telefono non è in linea: controlla che sia sulla stessa rete."
-
-#: contents/ui/KdeConnectPanel.qml:235
-msgid "The phone is ringing…"
-msgstr "Il telefono sta squillando…"
-
-#: contents/ui/KdeConnectPanel.qml:1114
-msgid "The qdbus tool was not found: unable to talk to KDE Connect."
-msgstr "Strumento qdbus non trovato: impossibile comunicare con KDE Connect."
-
-#: contents/ui/MenuRepresentation.qml:1108
-msgid "Thursday"
-msgstr "giovedì"
-
-#: contents/ui/KdeConnectPanel.qml:1356
-msgid "To: %1"
-msgstr "A: %1"
-
-#: contents/ui/MenuRepresentation.qml:1107
-msgid "Tuesday"
-msgstr "martedì"
-
-#: contents/ui/MenuRepresentation.qml:3174
-msgid "Type a command  ·  ↓ navigate  ·  /calc expr  ·  Enter run"
-msgstr "Digita un comando  ·  ↓ naviga  ·  /calc espr  ·  Invio esegui"
-
-#: contents/ui/MenuRepresentation.qml:3429
-msgid "Type a shell command after '>'"
-msgstr "Digita un comando dopo «>»"
-
-#: contents/ui/ConfigGeneral.qml:295
-msgid "Unhidden!"
-msgstr "Di nuovo visibili!"
-
-#: contents/ui/ConfigGeneral.qml:292
-msgid "Unhide all hidden applications"
-msgstr "Mostra di nuovo tutte le applicazioni nascoste"
-
-#: contents/ui/MenuRepresentation.qml:4458
-msgid "Unpin all apps in folder"
-msgstr "Rimuovi tutte le app della cartella"
-
-#: contents/ui/ItemGridDelegateColumns.qml:280
-msgid "Unpin from Start"
-msgstr "Rimuovi da Start"
-
-#: contents/ui/MenuRepresentation.qml:2804
-msgid "View: %1"
-msgstr "Vista: %1"
-
-#: contents/ui/KdeConnectPanel.qml:1486
-msgid "Web link or text to send"
-msgstr "Link web o testo da inviare"
-
-#: contents/ui/MenuRepresentation.qml:1108
-msgid "Wednesday"
-msgstr "mercoledì"
-
-#: contents/ui/MenuRepresentation.qml:1127
-msgid "Your morning session"
-msgstr "La tua sessione del mattino"
-
-#: contents/ui/KdeConnectPanel.qml:1794
-msgid "Your reply"
-msgstr "La tua risposta"
-
-#: contents/ui/MenuRepresentation.qml:1123
-msgid "Your top picks"
-msgstr "I tuoi preferiti"
-
-#: contents/ui/MenuRepresentation.qml:1281
-msgid "today at %1"
-msgstr "oggi alle %1"
-
-#: contents/ui/MenuRepresentation.qml:1282
-msgid "yesterday at %1"
-msgstr "ieri alle %1"
-
-#: contents/ui/KdeConnectPanel.qml:1051
-msgid "✓ SMS handed over to the phone"
-msgstr "✓ SMS consegnato al telefono"
-
-#. le formulaire reste ouvert, le texte est conservé
-#: contents/ui/KdeConnectPanel.qml:1056
-msgid "✗ Failed: SMS not handed over to the phone"
-msgstr "✗ Errore: SMS non consegnato al telefono"
-
-#~ msgid "Miryu Start"
-#~ msgstr "Miryu Start"
-
-#~ msgid "Windows 11 style start menu with a KDE Connect mobile panel"
-#~ msgstr "Menu Start in stile Windows 11 con pannello mobile KDE Connect"
-
-#~ msgid "Menu position"
-#~ msgstr "Posizione del menu"
-
-#~ msgid "Default"
-#~ msgstr "Predefinita"
-
-#~ msgid "Center"
-#~ msgstr "Centro"
-
-#~ msgid "Center bottom"
-#~ msgstr "Centro in basso"

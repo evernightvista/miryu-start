@@ -44,6 +44,11 @@ FocusScope {
     // (null par défaut : aucun changement pour les grilles qui fonctionnent déjà)
     property var favoritesModelOverride: null
     property int itemColumns
+    // True for the pinned-favorites grid: its delegates treat "folder" entries as
+    // pinned folders (2×2 app mosaic) and open the pinned folder context menu.
+    property bool pinnedGrid: false
+    // Folder creation via drag: index of the item being hovered as folder target
+    property int folderCreateTarget: -1
 
     property alias currentIndex: gridView.currentIndex
     property alias currentItem: gridView.currentItem
@@ -83,6 +88,18 @@ FocusScope {
         //if (!focus && !root.keyEventProxy.activeFocus) {
         if (!focus) {
             currentIndex = -1;
+        }
+    }
+
+    // When the grid becomes visible (menu opened) with the pointer already
+    // over an item, neither onPositionChanged nor HoverHandler may fire on
+    // the first frame. Reset lastX/lastY so updatePositionProperties runs,
+    // then nudge the hover area on the next frame to pick up the cursor.
+    onVisibleChanged: {
+        if (visible) {
+            hoverArea.lastX = -1;
+            hoverArea.lastY = -1;
+            hoverRefreshTimer.restart();
         }
     }
 
@@ -166,6 +183,22 @@ FocusScope {
                                var cPos = mapToItem(gridView.contentItem, x, event.y);
                                var item = gridView.itemAt(cPos.x, cPos.y);
 
+                               // Same-grid drag: hover over another app → folder creation mode
+                               if (item && kicker.dragSource.parent === gridView.contentItem
+                                       && item !== kicker.dragSource
+                                       && typeof rootItem !== "undefined"
+                                       && typeof rootItem.pinnedFoldersData !== "undefined") {
+                                   if (itemGrid.folderCreateTarget !== item.itemIndex) {
+                                       itemGrid.folderCreateTarget = item.itemIndex;
+                                       folderHoverTimer.restart();
+                                   }
+                                   return;
+                               }
+
+                               // Not hovering an item for folder creation: reset folder mode
+                               itemGrid.folderCreateTarget = -1;
+                               folderHoverTimer.stop();
+
                                if (item) {
                                    if (kicker.dragSource.parent === gridView.contentItem) {
                                        if (item !== kicker.dragSource) {
@@ -197,10 +230,12 @@ FocusScope {
                                }
                            }
 
-        
+
         onExited: {
             dragScrollTimer.stop()
             dragScrollTimer.direction = 0
+            itemGrid.folderCreateTarget = -1;
+            folderHoverTimer.stop();
             if ("dropPlaceholderIndex" in itemGrid.model) {
                 itemGrid.model.dropPlaceholderIndex = -1;
                 gridView.currentIndex = -1;
@@ -208,9 +243,59 @@ FocusScope {
         }
 
         onDropped: {
+            // Folder creation: dropped onto another app in the same grid
+            if (itemGrid.folderCreateTarget >= 0
+                    && kicker.dragSource && kicker.dragSource.parent === gridView.contentItem
+                    && typeof rootItem !== "undefined"
+                    && typeof rootItem.pinnedFoldersData !== "undefined"
+                    && typeof rootItem.createPinnedFolderFromApps !== "undefined") {
+                var srcId = kicker.dragSource.favoriteId || "";
+                var tgtIdx = itemGrid.folderCreateTarget;
+                var tgtId = "";
+                try {
+                    if (typeof itemGrid.model.get === "function") {
+                        var entry = itemGrid.model.get(tgtIdx);
+                        tgtId = entry ? (entry.favoriteId || "") : "";
+                    } else {
+                        tgtId = itemGrid.model.data(itemGrid.model.index(tgtIdx, 0), Qt.UserRole + 3) || "";
+                    }
+                } catch(e) {}
+                itemGrid.folderCreateTarget = -1;
+                folderHoverTimer.stop();
+                if (srcId && tgtId && srcId !== tgtId) {
+                    rootItem.createPinnedFolderFromApps(srcId, tgtId);
+                }
+                return;
+            }
+            itemGrid.folderCreateTarget = -1;
+            folderHoverTimer.stop();
             if (kicker.dragSource && kicker.dragSource.parent !== gridView.contentItem && kicker.dragSource.GridView.view.model.favoritesModel === itemGrid.model) {
                 itemGrid.model.addFavorite(kicker.dragSource.favoriteId, itemGrid.model.dropPlaceholderIndex);
                 gridView.currentIndex = -1;
+            }
+        }
+
+        Timer {
+            id: folderHoverTimer
+            interval: 350
+            repeat: false
+            // When fired, folderCreateTarget is already set; the delegate highlights it.
+            // A short delay distinguishes "reorder" (quick drop) from "create folder" (hover).
+        }
+
+        // Re-evaluate hover when the grid becomes visible so the item under a
+        // stationary cursor is highlighted without waiting for a mouse move.
+        Timer {
+            id: hoverRefreshTimer
+            interval: 10
+            repeat: false
+            onTriggered: {
+                if (!itemGrid.visible) return;
+                if (typeof rootItem !== "undefined" && rootItem.keyNavRecently()) return;
+                if (!hoverArea.containsMouse) return;
+                hoverArea.lastX = -1;
+                hoverArea.lastY = -1;
+                hoverArea.updatePositionProperties(hoverArea.mouseX, hoverArea.mouseY);
             }
         }
 
@@ -282,6 +367,9 @@ FocusScope {
 
                 // transmet la liste de favoris imposée à l'enveloppe (itemGrid), pour le clic droit
                 property var favoritesModelOverride: itemGrid.favoritesModelOverride
+                // transmet le drapeau « grille des favoris épinglés » aux délégués
+                // (GridView.view pointe sur ce GridView interne, pas sur itemGrid)
+                property bool pinnedGrid: itemGrid.pinnedGrid
 
                 width:  itemGrid.width                
                 height: itemGrid.height
@@ -326,6 +414,46 @@ FocusScope {
                         }
 
                         PropertyAction { target: gridView; property: "animating"; value: false }
+                    }
+                }
+
+                // Animate items appearing (e.g. app dragged out of a folder
+                // reappears in the pinned grid).
+                add: Transition {
+                    enabled: true
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        property: "scale"
+                        from: 0.6
+                        to: 1
+                        duration: 180
+                        easing.type: Easing.OutBack
+                    }
+                }
+
+                // Animate items disappearing (e.g. app dragged into a folder
+                // is filtered out of the pinned grid).
+                remove: Transition {
+                    enabled: true
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 1
+                        to: 0
+                        duration: 150
+                        easing.type: Easing.InCubic
+                    }
+                    NumberAnimation {
+                        property: "scale"
+                        from: 1
+                        to: 0.6
+                        duration: 150
+                        easing.type: Easing.InCubic
                     }
                 }
 
@@ -482,6 +610,16 @@ FocusScope {
 
             hoverEnabled: true
 
+            // When the menu opens with the pointer already over the grid,
+            // onEntered fires so we can highlight the item under the cursor
+            // without waiting for a mouse move.
+            onEntered: {
+                if (typeof rootItem !== "undefined" && rootItem.keyNavRecently()) return;
+                lastX = -1;
+                lastY = -1;
+                updatePositionProperties(mouseX, mouseY);
+            }
+
             function updatePositionProperties(x, y) {
                 // Prevent hover event synthesis in QQuickWindow interfering
                 // with keyboard navigation by ignoring repeated events with
@@ -597,7 +735,9 @@ FocusScope {
                                     }
                                     if ("trigger" in gridView.model) {
                                         gridView.model.trigger(pressedItem.itemIndex, "", null);
-                                        root.toggle();
+                                        // Don't close the menu when opening a folder
+                                        var isFolder = ("isFolderItem" in pressedItem) && pressedItem.isFolderItem;
+                                        if (!isFolder) root.toggle();
                                     }
 
                                     itemGrid.itemActivated(pressedItem.itemIndex, "", null);

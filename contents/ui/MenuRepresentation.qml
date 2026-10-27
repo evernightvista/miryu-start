@@ -229,6 +229,17 @@ PlasmaCore.Dialog {
             var pos = popupPosition(width, height);
             x = pos.x;
             y = pos.y;
+            // Fenestra : les dossiers épinglés doivent être chargés AVANT le premier
+            // affichage de la grille. Sinon la tuile-dossier n'existe pas encore au
+            // premier rendu, puis loadFolders() (30 ms plus tard) reconstruit le
+            // modèle et toute la liste « saute » à l'ouverture.
+            rootItem.loadFolders();
+            rootItem.loadAllAppsFolders();
+            // Un lanceur désépinglé depuis miryu-search doit avoir quitté son
+            // dossier AVANT le premier rendu de la grille : sinon il resterait
+            // affiché jusqu'à ce que l'on ouvre le dossier. Les favoris étant
+            // déjà à jour dans KActivities à ce stade, la purge est fiable.
+            rootItem.epurerDossiersEpingles();
             reset();
             // Fenestra : chargements après l'affichage (le menu se dessine d'abord)
             chargementsOuverture.restart();
@@ -285,6 +296,19 @@ PlasmaCore.Dialog {
         if (!root.visible && !force) return;
         rootItem.loadFolders();
         rootItem.loadAllAppsFolders();
+        // Prise en compte d'un retrait de favori survenu ailleurs depuis la
+        // dernière ouverture (miryu-search, réglages système) : un dossier ne
+        // montre jamais un lanceur qui n'est plus un favori Kicker, même si la
+        // configuration du plasmoïde n'a pas encore été relue.
+        // À l'ouverture le modèle peut ne pas être prêt : la purge est retentée.
+        rootItem.epurerDossiersEpingles();
+        rootItem.buildPinnedCombo();
+        // Filet de sécurité : les favoris sont chargés de façon asynchrone (KAStats).
+        // Si la toute première construction a eu lieu avant leur arrivée, la grille
+        // épinglée n'affiche que les dossiers. On reconstruit dès que l'écart apparaît.
+        if (globalFavorites && globalFavorites.rowCount() !== rootItem.pinnedBuiltRows) {
+            rootItem.buildPinnedCombo();
+        }
         rootItem.loadLaunchCounts();
         var maintenant = Date.now();
         if (force || maintenant - derniereLectureDocs >= intervalLectureDocs) {
@@ -315,7 +339,6 @@ PlasmaCore.Dialog {
         kicker.searchRunnerFilter = "all";
         folderContentPopup.visible = false;
         createFolderOverlay.visible = false;
-        folderRenameOverlay.visible = false;
         allAppsFolderPopup.visible = false;
         createAllAppsFolderOverlay.visible = false;
         viewModePopup.visible = false;
@@ -668,7 +691,15 @@ PlasmaCore.Dialog {
         Layout.maximumHeight: hauteurContenu
 
         focus: true
-        onFocusChanged: searchField.focus = true
+        onFocusChanged: {
+            // Don't steal focus back to the search box when a modal overlay
+            // (folder content, etc.) is open.
+            if (!folderContentPopup.visible
+                && !allAppsFolderPopup.visible && !folderAppPickerPopup.visible
+                && !createFolderOverlay.visible) {
+                searchField.focus = true;
+            }
+        }
 
         KCoreAddons.KUser { id: menuUser }
 
@@ -699,6 +730,28 @@ PlasmaCore.Dialog {
             Plasmoid.configuration.pinnedFolders = _foldersRaw;
         }
 
+        onPinnedFoldersDataChanged: {
+            if (typeof pinnedFavoritesFiltered !== "undefined") {
+                pinnedFavoritesFiltered.invalidate();
+            }
+            if (typeof pinnedComboModel !== "undefined") {
+                buildPinnedCombo();
+            }
+        }
+
+        // Create a pinned folder from two apps (drag-app-onto-app gesture)
+        function createPinnedFolderFromApps(appId1, appId2) {
+            if (!appId1 || !appId2 || appId1 === appId2) return;
+            var folders = pinnedFoldersData.slice();
+            folders.push({
+                name: i18n("Folder"),
+                items: [appId1, appId2],
+                createdAt: Date.now()
+            });
+            pinnedFoldersData = folders;
+            saveFolders();
+        }
+
         // ── All Apps Folders ────────────────────────────────────────────────
         property var allAppsFoldersData: []
         property string _allAppsFoldersRaw: ""
@@ -717,15 +770,20 @@ PlasmaCore.Dialog {
         }
 
         function launchFolderApp(desktopId) {
-            var favList = globalFavorites.favorites;
-            for (var i = 0; i < favList.length; i++) {
-                if (favList[i] === desktopId) {
+            // Search the source model by the favoriteId role (Qt.UserRole + 3),
+            // which is exactly what is stored in pinnedFoldersData items.
+            var count = globalFavorites.rowCount();
+            for (var i = 0; i < count; i++) {
+                var idx = globalFavorites.index(i, 0);
+                var favId = globalFavorites.data(idx, Qt.UserRole + 3);
+                if (favId === desktopId) {
                     rootItem.recordLaunch(desktopId);
                     globalFavorites.trigger(i, "", null);
-                    root.toggle();
-                    return;
+                    break;
                 }
             }
+            // Always close the start menu after launching (same as pinned apps)
+            root.toggle();
         }
 
         function displayNameForId(id) {
@@ -742,6 +800,108 @@ PlasmaCore.Dialog {
 
         function iconForId(id) {
             return id.startsWith("preferred://") ? "emblem-default" : id.replace(/\.desktop$/, "");
+        }
+
+        // Read the Icon= field from a .desktop file (file:// URL) and return
+        // the icon name. The model's decoration role returns a QIcon which
+        // cannot be reliably passed through JS to Kirigami.Icon.source, so we
+        // resolve the real icon name from the .desktop file instead.
+        function iconNameFromDesktopFile(desktopUrl) {
+            if (!desktopUrl) return "";
+            var urlStr = String(desktopUrl);
+            // Accept file:// URLs or bare paths
+            if (urlStr.indexOf("file://") !== 0 && urlStr.indexOf("/") !== 0) return "";
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", urlStr, false);
+            try {
+                xhr.send();
+                var text = xhr.responseText || "";
+                var lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (line.indexOf("Icon=") === 0) {
+                        return line.substring(5).trim();
+                    }
+                }
+            } catch (e) {}
+            return "";
+        }
+
+        // Cache of resolved icon names to avoid re-reading .desktop files.
+        property var _iconNameCache: ({})
+
+        // Look up the real icon name for a pinned favorite by its id.
+        function iconSourceForId(id) {
+            if (_iconNameCache[id] !== undefined && _iconNameCache[id] !== "") return _iconNameCache[id];
+            var url = urlForAppId(id);
+            var iconName = iconNameFromDesktopFile(url);
+            if (!iconName) {
+                // Fallback: try the app-list model's decoration as a string.
+                var info = lookupAppInfo(id);
+                if (info && info.decoration && typeof info.decoration === "string") {
+                    iconName = info.decoration;
+                }
+            }
+            if (!iconName && id.indexOf("://") > 0) {
+                // Pseudo favorites ("preferred://browser", "preferred://filemanager", …)
+                // are not real desktop files: the favorites model resolves them to the
+                // actual application, whose decoration is a QIcon that Kirigami.Icon
+                // renders directly (same as the grid delegate's `source: model.decoration`).
+                var info2 = lookupAppInfo(id);
+                if (info2 && info2.decoration && typeof info2.decoration !== "string") {
+                    iconName = info2.decoration;
+                }
+            }
+            if (!iconName) iconName = iconForId(id);
+            _iconNameCache[id] = iconName;
+            return iconName;
+        }
+
+        // Look up the real display name for a pinned favorite by its id.
+        function nameForId(id) {
+            var info = lookupAppInfo(id);
+            if (info && info.name) return info.name;
+            return displayNameForId(id);
+        }
+
+        // Look up the launcher URL for a pinned favorite by its id
+        // (used to start a drag from a folder-pop entry).
+        function urlForId(id) {
+            // Search by the favoriteId role (Qt.UserRole + 3) — matches what is
+            // stored in pinnedFoldersData items, regardless of how the model's
+            // `favorites` list represents entries.
+            var count = globalFavorites.rowCount();
+            for (var i = 0; i < count; i++) {
+                var idx = globalFavorites.index(i, 0);
+                var favId = globalFavorites.data(idx, Qt.UserRole + 3);
+                if (favId === id) {
+                    try {
+                        var u = globalFavorites.data(idx, Qt.UserRole + 10); // kickerUrlRole
+                        if (u) return u;
+                    } catch (e) {}
+                    break;
+                }
+            }
+            return "";
+        }
+
+        // Look up the .desktop URL for an app id by searching both the
+        // favorites model and the full app-list model.
+        function urlForAppId(id) {
+            var u = urlForId(id);
+            if (u) return u;
+            if (sortedAppsModel.sourceModel) {
+                for (var i = 0; i < sortedAppsModel.rowCount(); i++) {
+                    var midx = sortedAppsModel.index(i, 0);
+                    try {
+                        if (sortedAppsModel.data(midx, kickerFavoriteIdRole) === id) {
+                            var u2 = sortedAppsModel.data(midx, kickerUrlRole);
+                            if (u2) return String(u2);
+                        }
+                    } catch (e) {}
+                }
+            }
+            return "";
         }
 
         property bool _needsComboRebuild: false
@@ -811,7 +971,248 @@ PlasmaCore.Dialog {
                     };
                 }
             }
+            // Pseudo favorites ("preferred://browser", …) never appear in the app
+            // list: the favorites model resolves them to the real application.
+            var count = globalFavorites.rowCount();
+            for (var j = 0; j < count; j++) {
+                var gidx = globalFavorites.index(j, 0);
+                if (globalFavorites.data(gidx, kickerFavoriteIdRole) === favId) {
+                    var gName = globalFavorites.data(gidx, kickerDisplayRole);
+                    var gDeco = globalFavorites.data(gidx, kickerDecorationRole);
+                    return {
+                        name:        gName || displayNameForId(favId),
+                        decoration:  gDeco || iconForId(favId),
+                        description: globalFavorites.data(gidx, kickerDescriptionRole) || ""
+                    };
+                }
+            }
             return { name: displayNameForId(favId), decoration: iconForId(favId), description: "" };
+        }
+
+        // Build the combined pinned model: non-foldered pinned apps followed by
+        // pinned folder tiles, so folders flow inline with the last pinned app.
+        // `pinnedComboKeys` describes the expected content; rebuilding only when it
+        // actually differs avoids clearing/re-creating every tile (visible flicker).
+        property var pinnedComboKeys: []
+        property int pinnedBuiltRows: -1
+
+        // ── Dossiers épinglés et favoris Kicker ────────────────────────────
+        // Un lanceur rangé dans un dossier du menu Démarrer reste listé par
+        // « pinnedFoldersData » même une fois le favori Kicker supprimé : sans
+        // filtrage il continuerait d'apparaître dans le dossier, comme si
+        // « Désépingler du menu Démarrer » n'avait rien fait — que le retrait
+        // vienne d'ici, de miryu-search ou des réglages système.
+        // Les dossiers ne sont qu'une liste d'organisation : c'est le favori
+        // Kicker qui fait foi. On reconstruit donc, à chaque changement du
+        // modèle de favoris, l'ensemble des identifiants réellement épinglés
+        // (rôle FavoriteIdRole = AppEntry::id(), c'est-à-dire exactement la
+        // ressource enregistrée dans KActivities) et les dossiers n'affichent
+        // plus que les lanceurs qui y figurent encore.
+        property var idsFavorisActuels: ({})
+
+        function reconstruireIdsFavoris() {
+            var ensemble = ({});
+            if (globalFavorites) {
+                var n = 0;
+                try { n = globalFavorites.rowCount(); } catch (e) { n = 0; }
+                for (var i = 0; i < n; i++) {
+                    try {
+                        var v = String(globalFavorites.data(globalFavorites.index(i, 0),
+                                                            Qt.UserRole + 3) || "");
+                        if (v.length > 0) ensemble[v] = true;
+                    } catch (e2) {}
+                }
+            }
+            idsFavorisActuels = ensemble;
+        }
+
+        // Contenu réellement affichable d'un dossier épinglé.
+        function itemsDossierEpingles(idx) {
+            if (idx < 0 || idx >= pinnedFoldersData.length) return [];
+            var items = pinnedFoldersData[idx].items || [];
+            var ensemble = idsFavorisActuels;
+            var gardes = [];
+            for (var i = 0; i < items.length; i++) {
+                if (ensemble[items[i]] !== undefined) gardes.push(items[i]);
+            }
+            return gardes;
+        }
+
+        // Purge persistante des lanceurs désépinglés d'un dossier ; les dossiers
+        // devenus vides sont dissous. Renvoie true si le dossier existe toujours.
+        function purgerDossierEpingle(idx) {
+            if (idx < 0 || idx >= pinnedFoldersData.length) return false;
+            var dossier = pinnedFoldersData[idx];
+            var items = dossier.items || [];
+            if (items.length === 0) return true;
+            if (!globalFavorites) return true;
+            var n = 0;
+            try { n = globalFavorites.rowCount(); } catch (e) { return true; }
+            if (n === 0) return true;   // modèle pas encore prêt : on ne touche à rien
+
+            var ensemble = idsFavorisActuels;
+            var gardes = [];
+            for (var i = 0; i < items.length; i++) {
+                if (ensemble[items[i]] !== undefined) gardes.push(items[i]);
+            }
+            if (gardes.length === items.length) return true;
+
+            var dossiers = pinnedFoldersData.slice();
+            if (gardes.length === 0) {
+                dossiers.splice(idx, 1);
+                pinnedFoldersData = dossiers;
+                saveFolders();
+                return false;
+            }
+            dossiers[idx] = { name: dossier.name, items: gardes,
+                              createdAt: dossier.createdAt || 0 };
+            pinnedFoldersData = dossiers;
+            saveFolders();
+            return true;
+        }
+
+        // Synchronisation de TOUS les dossiers épinglés avec les favoris Kicker :
+        // tout lanceur qui n'est plus un favori quitte son dossier, et un dossier
+        // vidé est dissous. La liste écrite dans la configuration est donc
+        // corrigée elle-même, avant tout rendu : c'est ce qui rend « désépingler »
+        // immédiat, depuis n'importe où (miryu-search, réglages…), sans avoir à
+        // ouvrir le dossier pour déclencher le nettoyage.
+        // Sécurité : on ne touche à rien tant que le modèle de favoris est vide,
+        // car KAStats le remplit de façon asynchrone — pendant ce laps il ne
+        // reflèterait pas la réalité et viderait les dossiers à tort.
+        function epurerDossiersEpingles() {
+            if (pinnedFoldersData.length === 0 || !globalFavorites) return false;
+            var n = 0;
+            try { n = globalFavorites.rowCount(); } catch (e) { return false; }
+            if (n === 0) return false;
+
+            reconstruireIdsFavoris();
+            var ensemble = idsFavorisActuels;
+            var gardes = [];
+            var modifie = false;
+            for (var i = 0; i < pinnedFoldersData.length; i++) {
+                var dossier = pinnedFoldersData[i];
+                var items = dossier.items || [];
+                if (items.length === 0) { gardes.push(dossier); continue; }
+                var restants = [];
+                for (var j = 0; j < items.length; j++) {
+                    if (ensemble[items[j]] !== undefined) restants.push(items[j]);
+                }
+                if (restants.length === 0) { modifie = true; continue; }  // dissous
+                if (restants.length !== items.length) {
+                    gardes.push({ name: dossier.name, items: restants,
+                                  createdAt: dossier.createdAt || 0 });
+                    modifie = true;
+                } else {
+                    gardes.push(dossier);
+                }
+            }
+            if (!modifie) return false;
+            pinnedFoldersData = gardes;
+            saveFolders();
+            return true;
+        }
+
+        function buildPinnedCombo() {
+            if (!globalFavorites) return;
+            reconstruireIdsFavoris();
+
+            // Build set of foldered app IDs
+            var folderedIds = {};
+            for (var fi = 0; fi < pinnedFoldersData.length; fi++) {
+                var fd0 = pinnedFoldersData[fi];
+                if (fd0.items) {
+                    for (var ai0 = 0; ai0 < fd0.items.length; ai0++) folderedIds[fd0.items[ai0]] = fi;
+                }
+            }
+
+            var displayRole = Qt.DisplayRole;
+            var decorationRole = Qt.DecorationRole;
+            var favoriteIdRole = Qt.UserRole + 3;
+            var descRole = Qt.UserRole + 1;
+            var urlRole = Qt.UserRole + 10;
+            var actionRole = Qt.UserRole + 9;
+
+            // Non-foldered pinned apps
+            var appCount = globalFavorites.rowCount();
+            var keys = [];
+            var ki;
+            for (ki = 0; ki < appCount; ki++) {
+                var kid = globalFavorites.data(globalFavorites.index(ki, 0), favoriteIdRole) || "";
+                if (kid !== "" && folderedIds[kid] !== undefined) continue;
+                keys.push("a:" + kid);
+            }
+            for (ki = 0; ki < pinnedFoldersData.length; ki++) {
+                var kfd = pinnedFoldersData[ki];
+                keys.push("f:" + ki + ":" + kfd.name + ":" + itemsDossierEpingles(ki).length);
+            }
+
+            // Skip the rebuild when the content is unchanged: a clear()+append()
+            // cycle destroys and re-creates every delegate (pop-in animation replay).
+            var same = keys.length === pinnedComboKeys.length;
+            if (same) {
+                for (ki = 0; ki < keys.length; ki++) {
+                    if (keys[ki] !== pinnedComboKeys[ki]) { same = false; break; }
+                }
+            }
+            if (same && pinnedComboModel.count === keys.length) {
+                pinnedBuiltRows = appCount;
+                return;
+            }
+
+            pinnedComboKeys = keys;
+            pinnedBuiltRows = appCount;
+            pinnedComboModel.clear();
+
+            var rowNum = 0;
+            for (var i = 0; i < appCount; i++) {
+                var idx = globalFavorites.index(i, 0);
+                var favId = globalFavorites.data(idx, favoriteIdRole) || "";
+                if (favId !== "" && folderedIds[favId] !== undefined) continue;
+                pinnedComboModel.append({
+                    itemType: "app",
+                    row: rowNum,
+                    display: globalFavorites.data(idx, displayRole) || "",
+                    name: globalFavorites.data(idx, displayRole) || "",
+                    decoration: globalFavorites.data(idx, decorationRole) || "",
+                    favoriteId: favId,
+                    description: globalFavorites.data(idx, descRole) || "",
+                    url: String(globalFavorites.data(idx, urlRole) || ""),
+                    disabled: false,
+                    hasActionList: true,
+                    actionList: globalFavorites.data(idx, actionRole) || [],
+                    sourceRow: i,
+                    folderIdx: -1,
+                    indented: false,
+                    expanded: false
+                });
+                rowNum++;
+            }
+
+            // Folder tiles (appended after apps, so they follow the last pinned app)
+            for (var fi2 = 0; fi2 < pinnedFoldersData.length; fi2++) {
+                var fd2 = pinnedFoldersData[fi2];
+                var n = itemsDossierEpingles(fi2).length;
+                pinnedComboModel.append({
+                    itemType: "folder",
+                    folderScope: "pinned",
+                    row: rowNum,
+                    display: fd2.name,
+                    name: fd2.name,
+                    decoration: "folder",
+                    favoriteId: "",
+                    description: i18np("%1 app", "%1 apps", n),
+                    url: "",
+                    disabled: false,
+                    hasActionList: true,
+                    actionList: [],
+                    sourceRow: -1,
+                    folderIdx: fi2,
+                    indented: false,
+                    expanded: false
+                });
+                rowNum++;
+            }
         }
 
         function buildAllAppsCombo() {
@@ -1154,23 +1555,6 @@ PlasmaCore.Dialog {
                 handleQuery: function(q) { return null; },
                 searchResults: function(q) { return []; }
             });
-
-            // Web Search — injects "Search the web for X" into search results
-            PluginSystem.register({
-                name: "Web Search",
-                icon: "internet-web-browser",
-                commands: [],
-                handleQuery: function(q) { return null; },
-                searchResults: function(q) {
-                    if (!q || q.length < 2) return [];
-                    return [{
-                        icon: "internet-web-browser",
-                        title: i18n("Search the web for \"%1\"", q),
-                        subtitle: i18n("Opens default browser"),
-                        action: "xdg-open 'https://duckduckgo.com/?q=" + encodeURIComponent(q) + "'"
-                    }];
-                }
-            });
         }
 
         // Aggregated plugin search results — updated whenever the runner query changes
@@ -1249,6 +1633,43 @@ PlasmaCore.Dialog {
             }
 
             property var favoritesModel: sourceModel ? sourceModel.favoritesModel : null
+        }
+
+        // Pinned favorites with apps that belong to a folder filtered out
+        KItemModels.KSortFilterProxyModel {
+            id: pinnedFavoritesFiltered
+            sourceModel: globalFavorites
+            filterRowCallback: function(sourceRow, sourceParent) {
+                var idx = sourceModel.index(sourceRow, 0, sourceParent);
+                var favId = sourceModel.data(idx, Qt.UserRole + 3) || "";
+                if (!favId) return true;
+                var folders = rootItem.pinnedFoldersData;
+                for (var i = 0; i < folders.length; i++) {
+                    if (folders[i].items && folders[i].items.indexOf(favId) >= 0) return false;
+                }
+                return true;
+            }
+            property var favoritesModel: sourceModel ? sourceModel.favoritesModel : null
+            function trigger(row, actionId, argument) {
+                var srcIdx = mapToSource(index(row, 0));
+                if (srcIdx.valid && sourceModel) sourceModel.trigger(srcIdx.row, actionId, argument);
+            }
+            function isFavorite(id) { return sourceModel ? sourceModel.isFavorite(id) : false; }
+            function addFavorite(id, row) {
+                if (!sourceModel) return;
+                var srcRow = -1;
+                if (row >= 0 && row < count) {
+                    var mi = mapToSource(index(row, 0));
+                    if (mi.valid) srcRow = mi.row;
+                }
+                sourceModel.addFavorite(id, srcRow);
+            }
+            function moveRow(from, to) {
+                if (!sourceModel || from < 0 || to < 0 || from >= count || to >= count) return;
+                var fromSrc = mapToSource(index(from, 0)).row;
+                var toSrc = mapToSource(index(to, 0)).row;
+                sourceModel.moveRow(fromSrc, toSrc);
+            }
         }
 
         // Recommandations : seulement les 6 éléments affichés (pas de lignes cachées qui cassent le clavier)
@@ -1638,6 +2059,72 @@ PlasmaCore.Dialog {
             id: allAppsComboModel
             // Exposes favoritesModel so delegates can Pin/Unpin via the same KActivities model
             property var favoritesModel: sortedAppsModel.favoritesModel
+        }
+
+        // Combined model: pinned apps (foldered apps filtered out) followed by
+        // pinned folder tiles, so folders flow inline with the last pinned app
+        // in the same grid.
+        ListModel {
+            id: pinnedComboModel
+            property var favoritesModel: globalFavorites
+            property int dropPlaceholderIndex: -1
+
+            function trigger(row, actionId, argument) {
+                if (row < 0 || row >= count) return;
+                var e = get(row);
+                if (!e) return;
+                if (e.itemType === "folder") {
+                    // Open the pinned folder content popup
+                    folderContentPopup.showAt(e.folderIdx, 0, 0, 0, 0);
+                    return;
+                }
+                // App: forward to the real favorites model by source row
+                if (e.sourceRow !== undefined && e.sourceRow >= 0) {
+                    globalFavorites.trigger(e.sourceRow, actionId, argument);
+                }
+            }
+            function isFavorite(id) { return globalFavorites.isFavorite(id); }
+            function addFavorite(id, row) {
+                var srcRow = -1;
+                if (row >= 0 && row < count) {
+                    var e = get(row);
+                    if (e && e.sourceRow !== undefined) srcRow = e.sourceRow;
+                }
+                globalFavorites.addFavorite(id, srcRow);
+            }
+            function moveRow(from, to) {
+                if (from < 0 || to < 0 || from >= count || to >= count) return;
+                var fe = get(from);
+                var te = get(to);
+                if (!fe || fe.itemType === "folder") return;
+                if (te && te.itemType === "folder") return; // don't drop app onto folder tile here
+                var fromSrc = (fe.sourceRow !== undefined) ? fe.sourceRow : -1;
+                var toSrc = (te && te.sourceRow !== undefined) ? te.sourceRow : -1;
+                if (fromSrc >= 0 && toSrc >= 0) {
+                    globalFavorites.moveRow(fromSrc, toSrc);
+                }
+            }
+        }
+
+        // Rebuild the pinned combo model whenever the favorites model changes
+        // (apps pinned/unpinned/reordered). The Kicker favorites model is a
+        // QAbstractItemModel, so we listen to its structural change signals.
+        Connections {
+            target: globalFavorites
+            function onModelReset() { rootItem.buildPinnedCombo(); }
+            function onRowsInserted() { rootItem.buildPinnedCombo(); }
+            // Retrait d'un favori : le lanceur quitte aussitôt ses dossiers, sans
+            // attendre qu'on les ouvre.
+            function onRowsRemoved() {
+                rootItem.epurerDossiersEpingles();
+                rootItem.buildPinnedCombo();
+            }
+            function onRowsMoved() { rootItem.buildPinnedCombo(); }
+            function onLayoutChanged() { rootItem.buildPinnedCombo(); }
+            function onDataChanged() { rootItem.buildPinnedCombo(); }
+            // Le modèle de favoris se remplit de façon asynchrone (KAStats) :
+            // ce signal garantit une reconstruction dès que la liste est disponible.
+            function onFavoritesChanged() { rootItem.buildPinnedCombo(); }
         }
 
         PC3.TextField {
@@ -2222,6 +2709,7 @@ PlasmaCore.Dialog {
                 ItemGridView {
                     id: globalFavoritesGrid
                     whiteHighlight: true // surlignement blanc 50 %
+                    pinnedGrid: true
                     visible: true
                     clip: true   // coupe net les rangées au-delà du repli
                     width: parent.width
@@ -2335,167 +2823,6 @@ PlasmaCore.Dialog {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: rootItem.pinnedCurrentPage = index
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Pinned Folders strip ────────────────────────────────────────
-                Flow {
-                    id: folderStrip
-                    width: parent.width
-                    spacing: Kirigami.Units.smallSpacing
-                    visible: !rootItem.pinnedCollapsed && rootItem.pinnedFoldersData.length > 0
-
-                    Repeater {
-                        id: folderTilesRepeater
-                        model: rootItem.pinnedFoldersData
-
-                        delegate: Item {
-                            id: folderTile
-                            width: root.cellSizeWidth
-                            height: root.cellSizeHeight
-
-                            property var fd: rootItem.pinnedFoldersData[index] || {name:"", items:[]}
-
-                            focus: true
-                            activeFocusOnTab: true
-                            Accessible.role: Accessible.Button
-                            Accessible.name: fd.name
-
-                            Keys.onReturnPressed: {
-                                var pos = mapToItem(rootItem, 0, 0);
-                                folderContentPopup.showAt(index, pos.x, pos.y, width, height);
-                            }
-                            Keys.onSpacePressed: Keys.onReturnPressed
-
-                            // Hover/focus background
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.margins: Kirigami.Units.smallSpacing / 2
-                                radius: Kirigami.Units.smallSpacing + 2
-                                color: Kirigami.Theme.highlightColor
-                                opacity: tileHover.containsMouse ? 0.12 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: 100 } }
-                            }
-
-                            // Keyboard focus ring
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.margins: 1
-                                radius: Kirigami.Units.smallSpacing + 3
-                                color: "transparent"
-                                border.width: folderTile.activeFocus ? 2 : 0
-                                border.color: Kirigami.Theme.highlightColor
-                                opacity: 0.75
-                                Behavior on border.width { NumberAnimation { duration: 80 } }
-                            }
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: Kirigami.Units.smallSpacing
-
-                                // Icon mosaic
-                                Item {
-                                    id: mosaicBox
-                                    width: Kirigami.Units.iconSizes.medium
-                                    height: Kirigami.Units.iconSizes.medium
-                                    anchors.horizontalCenter: parent.horizontalCenter
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: Kirigami.Units.smallSpacing
-                                        color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.15)
-                                        border.width: 1
-                                        border.color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.35)
-                                    }
-
-                                    Grid {
-                                        anchors.centerIn: parent
-                                        columns: 2
-                                        spacing: 2
-
-                                        Repeater {
-                                            model: Math.min(4, folderTile.fd.items.length)
-                                            delegate: Kirigami.Icon {
-                                                width: (mosaicBox.width - 10) / 2
-                                                height: width
-                                                source: rootItem.iconForId(folderTile.fd.items[index])
-                                                animated: false
-                                            }
-                                        }
-                                    }
-
-                                    // Empty folder icon
-                                    Kirigami.Icon {
-                                        visible: folderTile.fd.items.length === 0
-                                        anchors.centerIn: parent
-                                        source: "folder"
-                                        width: Kirigami.Units.iconSizes.small
-                                        height: width
-                                        animated: false
-                                    }
-                                }
-
-                                // Folder name
-                                Text {
-                                    width: root.cellSizeWidth - Kirigami.Units.largeSpacing * 2
-                                    text: folderTile.fd.name
-                                    color: Kirigami.Theme.textColor
-                                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.85
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
-                                }
-                            }
-
-                            MouseArea {
-                                id: tileHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                                onClicked: mouse => {
-                                    if (mouse.button === Qt.RightButton) {
-                                        folderContextMenu.targetIndex = index;
-                                        folderContextMenu.popup();
-                                    } else {
-                                        var pos = mapToItem(rootItem, 0, 0);
-                                        folderContentPopup.showAt(index, pos.x, pos.y, width, height);
-                                    }
-                                }
-                            }
-
-                            // Drag-to-folder drop target
-                            DropArea {
-                                id: folderDropTarget
-                                anchors.fill: parent
-
-                                onDropped: {
-                                    var src = kicker.dragSource;
-                                    if (!src || !src.favoriteId || src.favoriteId === "") return;
-                                    var favId = src.favoriteId;
-                                    var folders = rootItem.pinnedFoldersData.slice();
-                                    var folder = folders[index];
-                                    if (!folder || folder.items.indexOf(favId) >= 0) return;
-                                    folders[index] = { name: folder.name, items: folder.items.concat([favId]) };
-                                    rootItem.pinnedFoldersData = folders;
-                                    rootItem.saveFolders();
-                                }
-
-                                // Drop-hover highlight ring
-                                Rectangle {
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    radius: Kirigami.Units.smallSpacing + 3
-                                    color: root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.22)
-                                    border.width: 2
-                                    border.color: Kirigami.Theme.highlightColor
-                                    visible: folderDropTarget.containsDrag
-                                             && typeof kicker.dragSource !== "undefined"
-                                             && kicker.dragSource !== null
                                 }
                             }
                         }
@@ -3271,20 +3598,6 @@ PlasmaCore.Dialog {
                             }
                         }
                     }
-                }
-
-                // ── Alt+1-9 hint (subtle, shown when results exist) ──
-                Text {
-                    anchors.right: parent.right
-                    anchors.top: filterPillsWrapper.bottom
-                    anchors.topMargin: 2
-                    anchors.rightMargin: Kirigami.Units.smallSpacing
-                    visible: root.searching && runnerGrid.count > 0
-                             && !searchField.text.startsWith('/')
-                             && !searchField.text.startsWith('>')
-                    text: i18n("Alt+1–9 to launch")
-                    color: root.colorWithAlpha(Kirigami.Theme.textColor, 0.3)
-                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.72
                 }
 
                 // ── Results grid ──
@@ -4139,11 +4452,15 @@ PlasmaCore.Dialog {
             }
         }
 
-        // ── Folder content popup ─────────────────────────────────────────────
-        // Click-outside dismiss layer
+        // ── Folder content popup (Windows 11 style: centered modal + icon grid) ──
+        // Dismiss layer — covers the ENTIRE dialog (including frame margins).
+        // No dim background; clicking outside closes the popup.
         MouseArea {
             id: folderPopupDismiss
-            anchors.fill: parent
+            x: -(root.margins.left || 0)
+            y: -(root.margins.top || 0)
+            width: root.width
+            height: root.height
             z: 198
             visible: folderContentPopup.visible
             onClicked: folderContentPopup.visible = false
@@ -4153,15 +4470,38 @@ PlasmaCore.Dialog {
             id: folderContentPopup
             visible: false
             z: 200
-            width: 240
+            scale: 0.85
+            opacity: 0
+            transformOrigin: Item.Center
+            // Center within the full dialog (matches the overlay coverage)
+            x: (root.width - width) / 2 - (root.margins.left || 0)
+            y: (root.height - height) / 2 - (root.margins.top || 0)
+            // 4 tiles per row: tile widths + 3 gaps + the inner Column's two margins.
+            // The old formula under-counted the gaps (largeSpacing*3 < smallSpacing*3+2*largeSpacing),
+            // which made the Flow wrap after only 3 tiles.
+            width: Math.min(rootItem.width - Kirigami.Units.largeSpacing * 2,
+                            root.cellSizeWidth * 4 + Kirigami.Units.smallSpacing * 3
+                            + Kirigami.Units.largeSpacing * 2 + 1)
             height: popupBg.height
 
+            Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+            onVisibleChanged: {
+                if (visible) {
+                    scale = 1;
+                    opacity = 1;
+                } else {
+                    scale = 0.85;
+                    opacity = 0;
+                }
+            }
+
             function showAt(idx, tileX, tileY, tileW, tileH) {
+                // Purge des lanceurs désépinglés avant l'affichage : si le
+                // dossier est vide de tout favori il est dissous et on n'ouvre rien.
+                if (!rootItem.purgerDossierEpingle(idx)) return;
                 folderContentPopup.property_folderIndex = idx;
-                var h = popupBg.height;
-                x = Math.max(0, Math.min(tileX, rootItem.width - width));
-                y = tileY - h - Kirigami.Units.smallSpacing;
-                if (y < 0) y = tileY + tileH + Kirigami.Units.smallSpacing;
                 visible = true;
             }
 
@@ -4181,70 +4521,183 @@ PlasmaCore.Dialog {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.margins: Kirigami.Units.smallSpacing
-                    spacing: 2
+                    anchors.margins: Kirigami.Units.largeSpacing
+                    spacing: Kirigami.Units.largeSpacing
 
-                    Text {
-                        leftPadding: Kirigami.Units.smallSpacing
+                    // Folder name — inline editable (click to rename directly)
+                    PC3.TextField {
+                        id: folderTitleField
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2,
+                                        implicitWidth + Kirigami.Units.largeSpacing * 2)
                         text: folderContentPopup.property_folderIndex >= 0 && folderContentPopup.property_folderIndex < rootItem.pinnedFoldersData.length
                               ? rootItem.pinnedFoldersData[folderContentPopup.property_folderIndex].name
                               : ""
                         font.bold: true
                         color: Kirigami.Theme.textColor
-                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.9
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.05
+                        horizontalAlignment: Text.AlignHCenter
+                        selectByMouse: true
+                        cursorDelegate: Rectangle { color: Kirigami.Theme.textColor; width: 1 }
+                        background: Rectangle {
+                            color: "transparent"
+                            border.width: 0
+                        }
+
+                        function commit() {
+                            var fi = folderContentPopup.property_folderIndex;
+                            if (fi < 0 || fi >= rootItem.pinnedFoldersData.length) return;
+                            var newName = text.trim();
+                            if (newName.length === 0) {
+                                // Revert to current name if empty
+                                text = rootItem.pinnedFoldersData[fi].name;
+                                return;
+                            }
+                            var folders = rootItem.pinnedFoldersData.slice();
+                            var old = folders[fi];
+                            if (old.name !== newName) {
+                                folders[fi] = { name: newName, items: old.items, createdAt: old.createdAt || 0 };
+                                rootItem.pinnedFoldersData = folders;
+                                rootItem.saveFolders();
+                            }
+                        }
+
+                        Keys.onReturnPressed: commit()
+                        Keys.onEnterPressed: commit()
+                        Keys.onEscapePressed: {
+                            text = folderContentPopup.property_folderIndex >= 0
+                                   ? rootItem.pinnedFoldersData[folderContentPopup.property_folderIndex].name
+                                   : "";
+                            focus = false;
+                        }
+                        onEditingFinished: commit()
                     }
 
-                    Repeater {
-                        model: folderContentPopup.property_folderIndex >= 0 && folderContentPopup.property_folderIndex < rootItem.pinnedFoldersData.length
-                               ? rootItem.pinnedFoldersData[folderContentPopup.property_folderIndex].items
-                               : []
+                    // App grid
+                    Flow {
+                        width: parent.width
+                        spacing: Kirigami.Units.smallSpacing
 
-                        delegate: Item {
-                            width: folderContentPopup.width - Kirigami.Units.smallSpacing * 2
-                            height: Kirigami.Units.gridUnit * 2.5
+                        Repeater {
+                            model: rootItem.itemsDossierEpingles(folderContentPopup.property_folderIndex)
 
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.margins: 2
-                                radius: Kirigami.Units.smallSpacing
-                                color: appEntryHover.containsMouse
-                                       ? root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.12)
-                                       : "transparent"
-                                Behavior on color { ColorAnimation { duration: 80 } }
-                            }
+                            delegate: Item {
+                                width: root.cellSizeWidth
+                                height: root.cellSizeHeight
 
-                            Row {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Kirigami.Units.smallSpacing * 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Kirigami.Units.smallSpacing
+                                property string favId: modelData
 
-                                Kirigami.Icon {
-                                    source: rootItem.iconForId(modelData)
-                                    width: Kirigami.Units.iconSizes.small
-                                    height: width
-                                    animated: false
+                                // Hover background
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.margins: Kirigami.Units.smallSpacing / 2
+                                    radius: Kirigami.Units.smallSpacing + 2
+                                    color: tileHover.containsMouse
+                                           ? root.colorWithAlpha(Kirigami.Theme.highlightColor, 0.12)
+                                           : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 80 } }
                                 }
 
-                                Text {
-                                    text: rootItem.displayNameForId(modelData)
-                                    color: Kirigami.Theme.textColor
-                                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.9
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: Kirigami.Units.smallSpacing
 
-                            MouseArea {
-                                id: appEntryHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    folderContentPopup.visible = false;
-                                    rootItem.launchFolderApp(modelData);
+                                    Kirigami.Icon {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        source: rootItem.iconSourceForId(favId)
+                                        width: Kirigami.Units.iconSizes.huge
+                                        height: width
+                                        animated: false
+                                    }
+
+                                    Text {
+                                        width: root.cellSizeWidth - Kirigami.Units.largeSpacing * 2
+                                        text: rootItem.nameForId(favId)
+                                        color: Kirigami.Theme.textColor
+                                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.85
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: tileHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+
+                                    property real pressX: -1
+                                    property real pressY: -1
+                                    property bool dragStarted: false
+
+                                    onPressed: {
+                                        pressX = mouse.x;
+                                        pressY = mouse.y;
+                                        dragStarted = false;
+                                    }
+
+                                    onPositionChanged: {
+                                        if (pressX !== -1 && !dragStarted
+                                            && dragHelper.isDrag(pressX, pressY, mouse.x, mouse.y)) {
+                                            var srcUrl = rootItem.urlForId(favId);
+                                            if (!srcUrl) return;  // can't start a drag; keep pressX so a click still launches
+
+                                            // Drag out of folder: remove from folder so it
+                                            // reappears in the pinned grid, then start drag.
+                                            var fi = folderContentPopup.property_folderIndex;
+                                            if (fi >= 0 && fi < rootItem.pinnedFoldersData.length) {
+                                                var folders = rootItem.pinnedFoldersData.slice();
+                                                var folder = folders[fi];
+                                                var idx = folder.items.indexOf(favId);
+                                                if (idx >= 0) {
+                                                    var newItems = folder.items.slice();
+                                                    newItems.splice(idx, 1);
+                                                    if (newItems.length === 0) {
+                                                        // Folder became empty → dissolve it.
+                                                        folders.splice(fi, 1);
+                                                        folderContentPopup.visible = false;
+                                                    } else {
+                                                        folders[fi] = {
+                                                            name: folder.name,
+                                                            items: newItems,
+                                                            createdAt: folder.createdAt || 0
+                                                        };
+                                                    }
+                                                    rootItem.pinnedFoldersData = folders;
+                                                    rootItem.saveFolders();
+                                                }
+                                            }
+                                            dragHelper.startDrag(kicker, srcUrl);
+                                            dragStarted = true;
+                                            pressX = -1;
+                                            pressY = -1;
+                                        }
+                                    }
+
+                                    onReleased: {
+                                        if (!dragStarted && !dragHelper.dragging) {
+                                            folderContentPopup.visible = false;
+                                            rootItem.launchFolderApp(favId);
+                                        }
+                                        pressX = -1;
+                                        pressY = -1;
+                                        dragStarted = false;
+                                    }
                                 }
                             }
                         }
+                    }
+
+                    // Empty state
+                    Text {
+                        visible: folderContentPopup.property_folderIndex >= 0
+                                 && rootItem.itemsDossierEpingles(folderContentPopup.property_folderIndex).length === 0
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: i18n("Drag apps here to add them")
+                        color: root.colorWithAlpha(Kirigami.Theme.textColor, 0.45)
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.85
+                        font.italic: true
                     }
                 }
             }
@@ -4256,6 +4709,12 @@ PlasmaCore.Dialog {
             anchors.fill: parent
             visible: false
             z: 202
+            onVisibleChanged: {
+                if (visible) {
+                    newFolderNameField.text = "";
+                    appPickerListView.checkedIds = [];
+                }
+            }
 
             // Dim background
             Rectangle {
@@ -4412,7 +4871,8 @@ PlasmaCore.Dialog {
                                 var folders = rootItem.pinnedFoldersData.slice();
                                 folders.push({
                                     name: newFolderNameField.text.trim(),
-                                    items: appPickerListView.checkedIds.slice()
+                                    items: appPickerListView.checkedIds.slice(),
+                                    createdAt: Date.now()
                                 });
                                 rootItem.pinnedFoldersData = folders;
                                 rootItem.saveFolders();
@@ -4428,20 +4888,6 @@ PlasmaCore.Dialog {
         Menu {
             id: folderContextMenu
             property int targetIndex: -1
-
-            MenuItem {
-                text: i18n("Rename folder")
-                icon.name: "edit-rename"
-                onTriggered: {
-                    var idx = folderContextMenu.targetIndex;
-                    if (idx < 0 || idx >= rootItem.pinnedFoldersData.length) return;
-                    folderRenameField.text = rootItem.pinnedFoldersData[idx].name;
-                    folderRenameOverlay.targetIndex = idx;
-                    folderRenameOverlay.visible = true;
-                    folderRenameField.forceActiveFocus();
-                    folderRenameField.selectAll();
-                }
-            }
 
             MenuItem {
                 text: i18n("Delete folder")
@@ -4469,83 +4915,6 @@ PlasmaCore.Dialog {
                     folders.splice(folderContextMenu.targetIndex, 1);
                     rootItem.pinnedFoldersData = folders;
                     rootItem.saveFolders();
-                }
-            }
-        }
-
-        // ── Folder rename overlay ────────────────────────────────────────────
-        Item {
-            id: folderRenameOverlay
-            anchors.fill: parent
-            visible: false
-            z: 202
-
-            property int targetIndex: -1
-
-            Rectangle {
-                anchors.fill: parent
-                color: "black"
-                opacity: 0.45
-                MouseArea { anchors.fill: parent; onClicked: folderRenameOverlay.visible = false }
-            }
-
-            Rectangle {
-                width: Math.min(300, rootItem.width - Kirigami.Units.largeSpacing * 4)
-                height: renameDialogCol.implicitHeight + Kirigami.Units.largeSpacing * 2
-                anchors.centerIn: parent
-                radius: Kirigami.Units.smallSpacing * 2
-                color: Kirigami.Theme.backgroundColor
-                border.width: 1
-                border.color: root.colorWithAlpha(Kirigami.Theme.textColor, 0.15)
-
-                Column {
-                    id: renameDialogCol
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: Kirigami.Units.largeSpacing
-                    spacing: Kirigami.Units.smallSpacing
-
-                    Text {
-                        text: i18n("Rename Folder")
-                        color: Kirigami.Theme.textColor
-                        font.bold: true
-                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.05
-                    }
-
-                    PC3.TextField {
-                        id: folderRenameField
-                        width: parent.width
-                        Keys.onReturnPressed: renameSaveBtn.clicked()
-                        Keys.onEscapePressed: folderRenameOverlay.visible = false
-                    }
-
-                    RowLayout {
-                        width: parent.width
-                        Item { Layout.fillWidth: true }
-                        PC3.Button {
-                            text: i18n("Cancel")
-                            onClicked: folderRenameOverlay.visible = false
-                        }
-                        PC3.Button {
-                            id: renameSaveBtn
-                            text: i18n("Save")
-                            highlighted: true
-                            enabled: folderRenameField.text.trim().length > 0
-                            onClicked: {
-                                var folders = rootItem.pinnedFoldersData.slice();
-                                if (folderRenameOverlay.targetIndex >= 0 && folderRenameOverlay.targetIndex < folders.length) {
-                                    folders[folderRenameOverlay.targetIndex] = {
-                                        name: folderRenameField.text.trim(),
-                                        items: folders[folderRenameOverlay.targetIndex].items
-                                    };
-                                    rootItem.pinnedFoldersData = folders;
-                                    rootItem.saveFolders();
-                                }
-                                folderRenameOverlay.visible = false;
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -4630,12 +4999,12 @@ PlasmaCore.Dialog {
                                 spacing: Kirigami.Units.smallSpacing
 
                                 Kirigami.Icon {
-                                    source: rootItem.iconForId(modelData)
+                                    source: rootItem.iconSourceForId(modelData)
                                     width: Kirigami.Units.iconSizes.small; height: width
                                     animated: false
                                 }
                                 Text {
-                                    text: rootItem.displayNameForId(modelData)
+                                    text: rootItem.lookupAppInfo(modelData).name
                                     color: Kirigami.Theme.textColor
                                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.9
                                     elide: Text.ElideRight
@@ -4887,7 +5256,7 @@ PlasmaCore.Dialog {
                                 var folders = rootItem.allAppsFoldersData.slice();
                                 if (idx >= 0 && idx < folders.length) {
                                     folders[idx] = {
-                                        name: folderRenameField.text.trim(),
+                                        name: aafRenameField.text.trim(),
                                         items: folders[idx].items,
                                         createdAt: folders[idx].createdAt || 0
                                     };
@@ -5150,28 +5519,6 @@ PlasmaCore.Dialog {
                     return;
                 }
             }
-            // Alt+1-9 — quick-launch Nth search result
-            if (view.currentIndex === 1 && event.modifiers === Qt.AltModifier) {
-                var altDigit = event.key - Qt.Key_1;
-                if (altDigit >= 0 && altDigit <= 8) {
-                    event.accepted = true;
-                    var resultCount = 0;
-                    for (var si = 0; si < runnerGrid.count; si++) {
-                        var sg = runnerGrid.subGridAt(si);
-                        if (!sg) continue;
-                        if (resultCount + sg.count > altDigit) {
-                            var localIdx = altDigit - resultCount;
-                            if ("trigger" in sg.model) {
-                                sg.model.trigger(localIdx, "", null);
-                                root.toggle();
-                            }
-                            return;
-                        }
-                        resultCount += sg.count;
-                    }
-                    return;
-                }
-            }
 
             if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_F) {
                 event.accepted = true;
@@ -5216,12 +5563,15 @@ PlasmaCore.Dialog {
     }
 
     function setModels() {
-        globalFavoritesGrid.model = globalFavorites;
+        // Construire avant d'attacher : sinon la vue affiche le modèle vide
+        // (clear) puis se remplit, ce qui produit un clignotement.
+        rootItem.buildPinnedCombo();
+        globalFavoritesGrid.model = pinnedComboModel;
         // Row order: [RecentApps(0), RecentDocs(1 if enabled), AllApps(1 or 2)]
         recentAppsListView.model = rootModel.modelForRow(0);
         var allAppsRow = Plasmoid.configuration.showRecentDocs ? 2 : 1;
         sortedAppsModel.sourceModel = rootModel.modelForRow(allAppsRow);
-        allAppsGrid.model = allAppsComboModel;
+        // buildAllAppsCombo() réattache lui-même allAppsGrid.model à la fin
         rootItem.buildAllAppsCombo();
         if (Plasmoid.configuration.showRecentDocs) {
             docsLimitedModel.sourceModel = rootModel.modelForRow(1);
@@ -5278,6 +5628,11 @@ PlasmaCore.Dialog {
     }
 
     Component.onCompleted: {
+        // Charger les dossiers AVANT la première construction des modèles :
+        // sinon la première ouverture reconstruit la grille (tuiles-dossiers
+        // ajoutées après coup), ce qui fait « sauter » la liste épinglée.
+        rootItem.loadFolders();
+        rootItem.loadAllAppsFolders();
         rootModel.refreshed.connect(setModels);
         reset();
         rootModel.refresh();

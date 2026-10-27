@@ -205,6 +205,14 @@ Item {
             id: toolTipHover
             onHoveredChanged: {
                 item.GridView.view.itemContainsMouseChanged(hovered);
+                // Highlight the item under the cursor even if the mouse didn't
+                // move (e.g. menu opened with the pointer already over an app).
+                if (hovered && root.visible && !item.isLetterHeader
+                        && !("isBlank" in item && item.isBlank)
+                        && item.GridView.view
+                        && !(typeof itemGrid !== "undefined" && itemGrid._keyNavRecently())) {
+                    item.GridView.view.currentIndex = item.itemIndex;
+                }
                 if (hovered && root.visible && label.truncated
                         && !(typeof rootItem !== "undefined" && rootItem.scrolling)
                         && typeof rootItem !== "undefined" && rootItem.showTileTip) {
