@@ -128,6 +128,12 @@
       <default></default>
     </entry>
 
+    <!-- Shared order of pinned entries (apps and folder tiles). Keys are
+         "a:<favoriteId>" for apps and "f:<folder identity>" for folders. -->
+    <entry name="pinnedOrder" type="String">
+      <default></default>
+    </entry>
+
     <entry name="showQuickActions" type="Bool">
       <default>false</default>
     </entry>

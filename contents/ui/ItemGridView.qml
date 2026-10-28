@@ -49,6 +49,17 @@ FocusScope {
     property bool pinnedGrid: false
     // Folder creation via drag: index of the item being hovered as folder target
     property int folderCreateTarget: -1
+    // Index of the item the hovered item is waiting on before turning into a
+    // folder-creation target (see folderHoverTimer): the marker gives users a
+    // chance to simply reorder instead of accidentally grouping two apps.
+    property int folderHoverPending: -1
+    // Reordering feedback for same-grid drags: the dragged app is inserted
+    // before (dropBefore) or after the item at dropTargetIndex.
+    property int dropTargetIndex: -1
+    property bool dropBefore: false
+    // Only models exposing moveRow() can be reordered (the pinned grid does).
+    readonly property bool reorderEnabled: dropEnabled && model
+        && typeof model.moveRow === "function"
 
     property alias currentIndex: gridView.currentIndex
     property alias currentItem: gridView.currentItem
@@ -79,8 +90,194 @@ FocusScope {
         return typeof rootItem !== "undefined" && rootItem.keyNavRecently();
     }
     onDropEnabledChanged: {
-        if (!dropEnabled && "dropPlaceHolderIndex" in model) {
-            model.dropPlaceHolderIndex = -1;
+        if (!dropEnabled) {
+            if (model && "dropPlaceholderIndex" in model) {
+                model.dropPlaceholderIndex = -1;
+            }
+            clearDropFeedback();
+        }
+    }
+
+    function clearDropFeedback() {
+        dropTargetIndex = -1;
+        dropBefore = false;
+        folderCreateTarget = -1;
+        folderHoverPending = -1;
+        if (folderHoverTimer) {
+            folderHoverTimer.stop();
+        }
+    }
+
+    // Row of the last reorderable entry currently visible in the viewport
+    // (used when the pointer is dropped on empty space, i.e. "append after
+    // this one"). Folder tiles count: they can now sit anywhere in the order,
+    // including at the very end.
+    function lastVisibleEntryIndex() {
+        var viewportTop = gridView.contentY;
+        var viewportBottom = viewportTop + gridView.height;
+        var fallback = -1;
+        for (var i = count - 1; i >= 0; --i) {
+            if (fallback < 0) {
+                fallback = i;
+            }
+            var delegate = null;
+            try {
+                delegate = gridView.itemAtIndex(i);
+            } catch (e) {
+                delegate = null;
+            }
+            if (delegate && delegate.isBlank !== true
+                    && delegate.y < viewportBottom && delegate.y + delegate.height > viewportTop) {
+                return i;
+            }
+        }
+        return fallback;
+    }
+
+    function entryAt(index) {
+        try {
+            if (model && typeof model.get === "function") {
+                return model.get(index);
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    // Shared by onEntered/onPositionChanged of the drop area so a drop that
+    // arrives without a preceding move still knows where it would land.
+    function updateDragHover(x, y) {
+        if (!dropEnabled || !kicker.dragSource || gridView.animating) {
+            return;
+        }
+
+        var cPos = dropArea.mapToItem(gridView.contentItem, x, y);
+        var item = gridView.itemAt(cPos.x, cPos.y);
+        var source = kicker.dragSource;
+
+        // ── Same-grid drag: reorder the pinned entries ────────
+        if (source.parent === gridView.contentItem) {
+            // Apps and folder tiles can both be reordered: the pinned order
+            // interleaves them, so a folder may end up anywhere.
+            var canReorder = reorderEnabled;
+
+            if (item && item !== source && item.isBlank !== true) {
+                var localX = cPos.x - item.x;
+                var before = localX < item.width / 2;
+
+                // Folder tiles keep their own drop area (add an app to the
+                // folder) in the middle; their outer edges reorder around them
+                // just like an app tile does.
+                if (item.isFolderItem === true) {
+                    folderCreateTarget = -1;
+                    folderHoverPending = -1;
+                    folderHoverTimer.stop();
+                    if (canReorder) {
+                        dropTargetIndex = item.itemIndex;
+                        dropBefore = before;
+                    } else {
+                        dropTargetIndex = -1;
+                    }
+                    return;
+                }
+
+                // The outer halves of a tile are the reorder zones; only the
+                // middle can become a folder.
+                var centerZone = Math.abs(localX - item.width / 2) <= item.width * 0.25;
+
+                // Folder mode belongs to a single tile's middle: leaving
+                // either cancels it.
+                if (folderCreateTarget >= 0
+                        && (folderCreateTarget !== item.itemIndex || !centerZone)) {
+                    folderCreateTarget = -1;
+                }
+                if (!centerZone && folderHoverPending !== -1) {
+                    folderHoverPending = -1;
+                    folderHoverTimer.stop();
+                }
+
+                // The side of the tile under the cursor decides whether the
+                // entry lands before or after it.
+                if (canReorder && folderCreateTarget !== item.itemIndex) {
+                    dropTargetIndex = item.itemIndex;
+                    dropBefore = before;
+                }
+
+                // Folder creation needs a deliberate pause on the middle of
+                // the tile; dragging across tiles reorders.
+                if (centerZone
+                        && !source.isFolderItem
+                        && folderCreateTarget !== item.itemIndex
+                        && folderHoverPending !== item.itemIndex) {
+                    folderHoverPending = item.itemIndex;
+                    folderHoverTimer.restart();
+                }
+                return;
+            }
+
+            // Hovering the dragged tile itself: nothing to do
+            if (item === source) {
+                dropTargetIndex = -1;
+                folderCreateTarget = -1;
+                folderHoverPending = -1;
+                folderHoverTimer.stop();
+                return;
+            }
+
+            // Over empty space in the same grid: append at the very end
+            folderCreateTarget = -1;
+            folderHoverPending = -1;
+            folderHoverTimer.stop();
+            if (canReorder) {
+                var reorderEnd = lastVisibleEntryIndex();
+                if (reorderEnd >= 0 && source.itemIndex !== reorderEnd) {
+                    dropTargetIndex = reorderEnd;
+                    dropBefore = false;
+                } else {
+                    dropTargetIndex = -1;
+                }
+            } else {
+                dropTargetIndex = -1;
+            }
+            return;
+        }
+
+        // ── Cross-grid drag (e.g. All apps → Pinned) ─────────
+        folderCreateTarget = -1;
+        folderHoverPending = -1;
+        folderHoverTimer.stop();
+        dropTargetIndex = -1;
+        dropBefore = false;
+
+        if (source.isFolderItem || !("dropPlaceholderIndex" in model)) {
+            if ("dropPlaceholderIndex" in model) {
+                model.dropPlaceholderIndex = -1;
+            }
+            return;
+        }
+
+        if (item) {
+            if (source.GridView.view.model.favoritesModel === model
+                    && !model.isFavorite(source.favoriteId)) {
+                var hasPlaceholder = (model.dropPlaceholderIndex !== -1);
+
+                model.dropPlaceholderIndex = item.itemIndex;
+
+                if (!hasPlaceholder) {
+                    gridView.currentIndex = (item.itemIndex - 1);
+                }
+            }
+        } else if (source.GridView.view.model.favoritesModel === model
+                   && !model.isFavorite(source.favoriteId)) {
+            var hasPlaceholder2 = (model.dropPlaceholderIndex !== -1);
+
+            model.dropPlaceholderIndex = hasPlaceholder2 ? model.count - 1 : model.count;
+
+            if (!hasPlaceholder2) {
+                gridView.currentIndex = (model.count - 1);
+            }
+        } else {
+            model.dropPlaceholderIndex = -1;
+            gridView.currentIndex = -1;
         }
     }
 
@@ -161,6 +358,13 @@ FocusScope {
     height: itemGrid.height
         //anchors.fill: parent
 
+        // A drop can land without any preceding pointer movement (e.g. the drag
+        // enters the grid and is released immediately), so resolve the landing
+        // slot on entry as well as on movement.
+        onEntered: event => {
+            itemGrid.updateDragHover(event.x, event.y);
+        }
+
         onPositionChanged: event => {
                                if (kicker.dragSource) {
                                    var ez = 52
@@ -175,67 +379,14 @@ FocusScope {
                                        dragScrollTimer.direction = 0
                                    }
                                }
-                               if (!itemGrid.dropEnabled || gridView.animating || !kicker.dragSource) {
-                                   return;
-                               }
-
-                               var x = Math.max(0, event.x - (width % itemGrid.cellWidth));
-                               var cPos = mapToItem(gridView.contentItem, x, event.y);
-                               var item = gridView.itemAt(cPos.x, cPos.y);
-
-                               // Same-grid drag: hover over another app → folder creation mode
-                               if (item && kicker.dragSource.parent === gridView.contentItem
-                                       && item !== kicker.dragSource
-                                       && typeof rootItem !== "undefined"
-                                       && typeof rootItem.pinnedFoldersData !== "undefined") {
-                                   if (itemGrid.folderCreateTarget !== item.itemIndex) {
-                                       itemGrid.folderCreateTarget = item.itemIndex;
-                                       folderHoverTimer.restart();
-                                   }
-                                   return;
-                               }
-
-                               // Not hovering an item for folder creation: reset folder mode
-                               itemGrid.folderCreateTarget = -1;
-                               folderHoverTimer.stop();
-
-                               if (item) {
-                                   if (kicker.dragSource.parent === gridView.contentItem) {
-                                       if (item !== kicker.dragSource) {
-                                           item.GridView.view.model.moveRow(dragSource.itemIndex, item.itemIndex);
-                                       }
-                                   } else if (kicker.dragSource.GridView.view.model.favoritesModel === itemGrid.model
-                                              && !itemGrid.model.isFavorite(kicker.dragSource.favoriteId)) {
-                                       var hasPlaceholder = (itemGrid.model.dropPlaceholderIndex !== -1);
-
-                                       itemGrid.model.dropPlaceholderIndex = item.itemIndex;
-
-                                       if (!hasPlaceholder) {
-                                           gridView.currentIndex = (item.itemIndex - 1);
-                                       }
-                                   }
-                               } else if (kicker.dragSource.parent !== gridView.contentItem
-                                          && kicker.dragSource.GridView.view.model.favoritesModel === itemGrid.model
-                                          && !itemGrid.model.isFavorite(kicker.dragSource.favoriteId)) {
-                                   var hasPlaceholder = (itemGrid.model.dropPlaceholderIndex !== -1);
-
-                                   itemGrid.model.dropPlaceholderIndex = hasPlaceholder ? itemGrid.model.count - 1 : itemGrid.model.count;
-
-                                   if (!hasPlaceholder) {
-                                       gridView.currentIndex = (itemGrid.model.count - 1);
-                                   }
-                               } else {
-                                   itemGrid.model.dropPlaceholderIndex = -1;
-                                   gridView.currentIndex = -1;
-                               }
+                               itemGrid.updateDragHover(event.x, event.y);
                            }
 
 
         onExited: {
             dragScrollTimer.stop()
             dragScrollTimer.direction = 0
-            itemGrid.folderCreateTarget = -1;
-            folderHoverTimer.stop();
+            itemGrid.clearDropFeedback();
             if ("dropPlaceholderIndex" in itemGrid.model) {
                 itemGrid.model.dropPlaceholderIndex = -1;
                 gridView.currentIndex = -1;
@@ -243,44 +394,77 @@ FocusScope {
         }
 
         onDropped: {
+            var source = kicker.dragSource;
+
             // Folder creation: dropped onto another app in the same grid
             if (itemGrid.folderCreateTarget >= 0
-                    && kicker.dragSource && kicker.dragSource.parent === gridView.contentItem
+                    && source && !source.isFolderItem
+                    && source.parent === gridView.contentItem
                     && typeof rootItem !== "undefined"
                     && typeof rootItem.pinnedFoldersData !== "undefined"
                     && typeof rootItem.createPinnedFolderFromApps !== "undefined") {
-                var srcId = kicker.dragSource.favoriteId || "";
+                var srcId = source.favoriteId || "";
                 var tgtIdx = itemGrid.folderCreateTarget;
-                var tgtId = "";
-                try {
-                    if (typeof itemGrid.model.get === "function") {
-                        var entry = itemGrid.model.get(tgtIdx);
-                        tgtId = entry ? (entry.favoriteId || "") : "";
-                    } else {
+                var tgtEntry = itemGrid.entryAt(tgtIdx);
+                var tgtId = tgtEntry ? (tgtEntry.favoriteId || "") : "";
+                if (!tgtId) {
+                    try {
                         tgtId = itemGrid.model.data(itemGrid.model.index(tgtIdx, 0), Qt.UserRole + 3) || "";
-                    }
-                } catch(e) {}
-                itemGrid.folderCreateTarget = -1;
-                folderHoverTimer.stop();
+                    } catch(e) {}
+                }
+                itemGrid.clearDropFeedback();
                 if (srcId && tgtId && srcId !== tgtId) {
                     rootItem.createPinnedFolderFromApps(srcId, tgtId);
                 }
                 return;
             }
-            itemGrid.folderCreateTarget = -1;
-            folderHoverTimer.stop();
-            if (kicker.dragSource && kicker.dragSource.parent !== gridView.contentItem && kicker.dragSource.GridView.view.model.favoritesModel === itemGrid.model) {
-                itemGrid.model.addFavorite(kicker.dragSource.favoriteId, itemGrid.model.dropPlaceholderIndex);
+
+            // Same-grid reorder: move the dragged entry (app or folder tile)
+            // to the marked slot.
+            var targetIdx = itemGrid.dropTargetIndex;
+            if (source && source.parent === gridView.contentItem
+                    && itemGrid.reorderEnabled
+                    && targetIdx >= 0 && targetIdx < itemGrid.count
+                    && targetIdx !== source.itemIndex) {
+                var from = source.itemIndex;
+                var to = itemGrid.dropBefore
+                        ? (from < targetIdx ? targetIdx - 1 : targetIdx)
+                        : (from < targetIdx ? targetIdx : targetIdx + 1);
+                itemGrid.clearDropFeedback();
+                if (to >= 0 && to !== from) {
+                    // Deferred: the model is reordered right after the drop
+                    // event so the delegates survive the ongoing drag.
+                    Qt.callLater(function() {
+                        itemGrid.model.moveRow(from, to);
+                    });
+                }
+                return;
+            }
+
+            itemGrid.clearDropFeedback();
+            if (source && !source.isFolderItem
+                    && source.parent !== gridView.contentItem
+                    && source.GridView.view.model.favoritesModel === itemGrid.model
+                    && source.favoriteId) {
+                itemGrid.model.addFavorite(source.favoriteId, itemGrid.model.dropPlaceholderIndex);
                 gridView.currentIndex = -1;
             }
         }
 
         Timer {
             id: folderHoverTimer
-            interval: 350
+            interval: 600
             repeat: false
-            // When fired, folderCreateTarget is already set; the delegate highlights it.
-            // A short delay distinguishes "reorder" (quick drop) from "create folder" (hover).
+            // Fires only when the pointer has dwelled on the same tile: the
+            // delegate then highlights it as a folder-creation target. Until
+            // then, dragging across tiles reorders the pinned apps.
+            onTriggered: {
+                if (itemGrid.folderHoverPending >= 0) {
+                    itemGrid.folderCreateTarget = itemGrid.folderHoverPending;
+                    itemGrid.folderHoverPending = -1;
+                    itemGrid.dropTargetIndex = -1;
+                }
+            }
         }
 
         // Re-evaluate hover when the grid becomes visible so the item under a
@@ -761,6 +945,12 @@ FocusScope {
                                            if ("pluginName" in item.m) {
                                                dragHelper.startDrag(kicker, item.url, item.icon,
                                                                     "text/x-plasmoidservicename", item.m.pluginName);
+                                           } else if (item.isFolderItem === true) {
+                                               // Folder tiles have no URL of their own: give the
+                                               // drag a payload so it can be reordered like an app.
+                                               dragHelper.startDrag(kicker, "", "",
+                                                                    "text/x-miryu-pinned-entry",
+                                                                    item.entryKey || "folder");
                                            } else {
                                                // console.log(kicker, item.url, item.icon);
                                                // dragHelper.startDrag(kicker, item.url, item.icon);

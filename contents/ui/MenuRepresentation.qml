@@ -235,6 +235,7 @@ PlasmaCore.Dialog {
             // modèle et toute la liste « saute » à l'ouverture.
             rootItem.loadFolders();
             rootItem.loadAllAppsFolders();
+            rootItem.loadPinnedOrder();
             // Un lanceur désépinglé depuis miryu-search doit avoir quitté son
             // dossier AVANT le premier rendu de la grille : sinon il resterait
             // affiché jusqu'à ce que l'on ouvre le dossier. Les favoris étant
@@ -296,6 +297,7 @@ PlasmaCore.Dialog {
         if (!root.visible && !force) return;
         rootItem.loadFolders();
         rootItem.loadAllAppsFolders();
+        rootItem.loadPinnedOrder();
         // Prise en compte d'un retrait de favori survenu ailleurs depuis la
         // dernière ouverture (miryu-search, réglages système) : un dossier ne
         // montre jamais un lanceur qui n'est plus un favori Kicker, même si la
@@ -730,6 +732,41 @@ PlasmaCore.Dialog {
             Plasmoid.configuration.pinnedFolders = _foldersRaw;
         }
 
+        // ── Shared order of pinned entries (apps + folder tiles) ────────────
+        // The Kicker favorites model only orders apps, and pinning always
+        // appended folder tiles after them, so a folder could never be moved
+        // (and no app could be placed after the last folder). This list is the
+        // single source of truth for the pinned grid order; it interleaves
+        // "a:<favoriteId>" app keys with "f:<folder identity>" folder keys.
+        property var pinnedOrderData: []
+        property string _pinnedOrderRaw: ""
+
+        function pinnedAppKey(favId) {
+            return "a:" + favId;
+        }
+
+        function pinnedFolderKey(folder) {
+            if (!folder) return "";
+            if (folder.createdAt) return "f:" + folder.createdAt;
+            return "f:name:" + (folder.name || "");
+        }
+
+        function loadPinnedOrder() {
+            var raw = Plasmoid.configuration.pinnedOrder || "";
+            if (raw === _pinnedOrderRaw) return;
+            _pinnedOrderRaw = raw;
+            if (raw.length === 0) { pinnedOrderData = []; return; }
+            try {
+                var parsed = JSON.parse(raw);
+                pinnedOrderData = (parsed instanceof Array) ? parsed : [];
+            } catch(e) { pinnedOrderData = []; }
+        }
+
+        function savePinnedOrder() {
+            _pinnedOrderRaw = JSON.stringify(pinnedOrderData);
+            Plasmoid.configuration.pinnedOrder = _pinnedOrderRaw;
+        }
+
         onPinnedFoldersDataChanged: {
             if (typeof pinnedFavoritesFiltered !== "undefined") {
                 pinnedFavoritesFiltered.invalidate();
@@ -989,8 +1026,9 @@ PlasmaCore.Dialog {
             return { name: displayNameForId(favId), decoration: iconForId(favId), description: "" };
         }
 
-        // Build the combined pinned model: non-foldered pinned apps followed by
-        // pinned folder tiles, so folders flow inline with the last pinned app.
+        // Build the combined pinned model: non-foldered pinned apps and pinned
+        // folder tiles, in the shared order stored in `pinnedOrderData` (so a
+        // folder can sit anywhere, including at the very end).
         // `pinnedComboKeys` describes the expected content; rebuilding only when it
         // actually differs avoids clearing/re-creating every tile (visible flicker).
         property var pinnedComboKeys: []
@@ -1133,18 +1171,82 @@ PlasmaCore.Dialog {
             var urlRole = Qt.UserRole + 10;
             var actionRole = Qt.UserRole + 9;
 
-            // Non-foldered pinned apps
+            // ── Non-foldered pinned apps, keyed by "a:<favoriteId>" ─────────
             var appCount = globalFavorites.rowCount();
+            var appInfo = {};
+            var appKeys = [];
+            for (var i = 0; i < appCount; i++) {
+                var idx = globalFavorites.index(i, 0);
+                var favId = globalFavorites.data(idx, favoriteIdRole) || "";
+                if (favId === "") continue;
+                if (folderedIds[favId] !== undefined) continue;
+                var akey = pinnedAppKey(favId);
+                if (appInfo[akey] !== undefined) continue;
+                appKeys.push(akey);
+                appInfo[akey] = {
+                    favoriteId: favId,
+                    sourceRow: i,
+                    display: globalFavorites.data(idx, displayRole) || "",
+                    decoration: globalFavorites.data(idx, decorationRole) || "",
+                    description: globalFavorites.data(idx, descRole) || "",
+                    url: String(globalFavorites.data(idx, urlRole) || ""),
+                    actionList: globalFavorites.data(idx, actionRole) || []
+                };
+            }
+
+            // ── Folder tiles, keyed by "f:<identity>" ──────────────────────
+            var folderInfo = {};
+            var folderKeys = [];
+            for (var fj = 0; fj < pinnedFoldersData.length; fj++) {
+                var kfd = pinnedFoldersData[fj];
+                var fkey = pinnedFolderKey(kfd);
+                if (!fkey) fkey = "f:idx:" + fj;
+                if (folderInfo[fkey] !== undefined) fkey = fkey + ":" + fj;
+                folderInfo[fkey] = {
+                    index: fj,
+                    name: kfd.name || "",
+                    count: itemsDossierEpingles(fj).length
+                };
+                folderKeys.push(fkey);
+            }
+
+            // ── Merge the stored order with the entries that still exist ────
+            // Entries gone from the favorites / folders are dropped; brand new
+            // apps and folders are appended at the end (unchanged order for
+            // users who never reordered anything).
+            var order = [];
+            var seen = {};
+            var oi;
+            for (oi = 0; oi < pinnedOrderData.length; oi++) {
+                var ok = pinnedOrderData[oi];
+                if (appInfo[ok] !== undefined || folderInfo[ok] !== undefined) {
+                    if (!seen[ok]) { order.push(ok); seen[ok] = true; }
+                }
+            }
+            for (var ak = 0; ak < appKeys.length; ak++) {
+                if (!seen[appKeys[ak]]) { order.push(appKeys[ak]); seen[appKeys[ak]] = true; }
+            }
+            for (var fk = 0; fk < folderKeys.length; fk++) {
+                if (!seen[folderKeys[fk]]) { order.push(folderKeys[fk]); seen[folderKeys[fk]] = true; }
+            }
+
+            if (order.join("|") !== pinnedOrderData.join("|")) {
+                pinnedOrderData = order;
+                savePinnedOrder();
+            }
+
+            // Signature used to skip useless rebuilds (it keeps the folder
+            // member count so folder tile subtitles stay fresh).
             var keys = [];
             var ki;
-            for (ki = 0; ki < appCount; ki++) {
-                var kid = globalFavorites.data(globalFavorites.index(ki, 0), favoriteIdRole) || "";
-                if (kid !== "" && folderedIds[kid] !== undefined) continue;
-                keys.push("a:" + kid);
-            }
-            for (ki = 0; ki < pinnedFoldersData.length; ki++) {
-                var kfd = pinnedFoldersData[ki];
-                keys.push("f:" + ki + ":" + kfd.name + ":" + itemsDossierEpingles(ki).length);
+            for (ki = 0; ki < order.length; ki++) {
+                var entryKey = order[ki];
+                if (appInfo[entryKey] !== undefined) {
+                    keys.push(entryKey);
+                } else {
+                    var finfo = folderInfo[entryKey];
+                    keys.push("f:" + finfo.index + ":" + finfo.name + ":" + finfo.count);
+                }
             }
 
             // Skip the rebuild when the content is unchanged: a clear()+append()
@@ -1165,52 +1267,50 @@ PlasmaCore.Dialog {
             pinnedComboModel.clear();
 
             var rowNum = 0;
-            for (var i = 0; i < appCount; i++) {
-                var idx = globalFavorites.index(i, 0);
-                var favId = globalFavorites.data(idx, favoriteIdRole) || "";
-                if (favId !== "" && folderedIds[favId] !== undefined) continue;
-                pinnedComboModel.append({
-                    itemType: "app",
-                    row: rowNum,
-                    display: globalFavorites.data(idx, displayRole) || "",
-                    name: globalFavorites.data(idx, displayRole) || "",
-                    decoration: globalFavorites.data(idx, decorationRole) || "",
-                    favoriteId: favId,
-                    description: globalFavorites.data(idx, descRole) || "",
-                    url: String(globalFavorites.data(idx, urlRole) || ""),
-                    disabled: false,
-                    hasActionList: true,
-                    actionList: globalFavorites.data(idx, actionRole) || [],
-                    sourceRow: i,
-                    folderIdx: -1,
-                    indented: false,
-                    expanded: false
-                });
-                rowNum++;
-            }
-
-            // Folder tiles (appended after apps, so they follow the last pinned app)
-            for (var fi2 = 0; fi2 < pinnedFoldersData.length; fi2++) {
-                var fd2 = pinnedFoldersData[fi2];
-                var n = itemsDossierEpingles(fi2).length;
-                pinnedComboModel.append({
-                    itemType: "folder",
-                    folderScope: "pinned",
-                    row: rowNum,
-                    display: fd2.name,
-                    name: fd2.name,
-                    decoration: "folder",
-                    favoriteId: "",
-                    description: i18np("%1 app", "%1 apps", n),
-                    url: "",
-                    disabled: false,
-                    hasActionList: true,
-                    actionList: [],
-                    sourceRow: -1,
-                    folderIdx: fi2,
-                    indented: false,
-                    expanded: false
-                });
+            for (var ri = 0; ri < order.length; ri++) {
+                var rkey = order[ri];
+                if (appInfo[rkey] !== undefined) {
+                    var app = appInfo[rkey];
+                    pinnedComboModel.append({
+                        itemType: "app",
+                        entryKey: rkey,
+                        row: rowNum,
+                        display: app.display,
+                        name: app.display,
+                        decoration: app.decoration,
+                        favoriteId: rkey.substring(2),
+                        description: app.description,
+                        url: app.url,
+                        disabled: false,
+                        hasActionList: true,
+                        actionList: app.actionList,
+                        sourceRow: app.sourceRow,
+                        folderIdx: -1,
+                        indented: false,
+                        expanded: false
+                    });
+                } else {
+                    var finfo2 = folderInfo[rkey];
+                    pinnedComboModel.append({
+                        itemType: "folder",
+                        folderScope: "pinned",
+                        entryKey: rkey,
+                        row: rowNum,
+                        display: finfo2.name,
+                        name: finfo2.name,
+                        decoration: "folder",
+                        favoriteId: "",
+                        description: i18np("%1 app", "%1 apps", finfo2.count),
+                        url: "",
+                        disabled: false,
+                        hasActionList: true,
+                        actionList: [],
+                        sourceRow: -1,
+                        folderIdx: finfo2.index,
+                        indented: false,
+                        expanded: false
+                    });
+                }
                 rowNum++;
             }
         }
@@ -2061,9 +2161,9 @@ PlasmaCore.Dialog {
             property var favoritesModel: sortedAppsModel.favoritesModel
         }
 
-        // Combined model: pinned apps (foldered apps filtered out) followed by
-        // pinned folder tiles, so folders flow inline with the last pinned app
-        // in the same grid.
+        // Combined pinned model: non-foldered pinned apps and pinned folder
+        // tiles, ordered by rootItem.pinnedOrderData (apps and folders can be
+        // interleaved and reordered freely).
         ListModel {
             id: pinnedComboModel
             property var favoritesModel: globalFavorites
@@ -2086,23 +2186,85 @@ PlasmaCore.Dialog {
             function isFavorite(id) { return globalFavorites.isFavorite(id); }
             function addFavorite(id, row) {
                 var srcRow = -1;
+                var insertAt = -1;
                 if (row >= 0 && row < count) {
                     var e = get(row);
                     if (e && e.sourceRow !== undefined) srcRow = e.sourceRow;
+                    insertAt = row;
                 }
                 globalFavorites.addFavorite(id, srcRow);
+                // The display order now lives in rootItem.pinnedOrderData: a new
+                // favorite would otherwise always land at the end, wherever it
+                // was dropped. Pin it at the hovered slot instead.
+                if (insertAt >= 0 && typeof rootItem !== "undefined"
+                        && rootItem.pinnedOrderData !== undefined) {
+                    var key = rootItem.pinnedAppKey(id);
+                    var order = [];
+                    for (var i = 0; i < rootItem.pinnedOrderData.length; ++i) {
+                        if (rootItem.pinnedOrderData[i] !== key) {
+                            order.push(rootItem.pinnedOrderData[i]);
+                        }
+                    }
+                    order.splice(Math.max(0, Math.min(insertAt, order.length)), 0, key);
+                    rootItem.pinnedOrderData = order;
+                    rootItem.savePinnedOrder();
+                    rootItem.pinnedComboKeys = [];
+                    // Deferred like moveRow(): the model rebuild must not
+                    // destroy the dragged delegate while the drop is handled.
+                    Qt.callLater(function() { rootItem.buildPinnedCombo(); });
+                }
             }
             function moveRow(from, to) {
-                if (from < 0 || to < 0 || from >= count || to >= count) return;
-                var fe = get(from);
-                var te = get(to);
-                if (!fe || fe.itemType === "folder") return;
-                if (te && te.itemType === "folder") return; // don't drop app onto folder tile here
-                var fromSrc = (fe.sourceRow !== undefined) ? fe.sourceRow : -1;
-                var toSrc = (te && te.sourceRow !== undefined) ? te.sourceRow : -1;
-                if (fromSrc >= 0 && toSrc >= 0) {
-                    globalFavorites.moveRow(fromSrc, toSrc);
+                if (from < 0 || to < 0 || from >= count || from === to || count === 0) return;
+                if (to >= count) to = count - 1;
+
+                var moving = get(from);
+                if (!moving || !moving.entryKey) return;
+
+                // The grid order lives in rootItem.pinnedOrderData, which mixes
+                // app keys ("a:<favoriteId>") and folder keys ("f:<identity>").
+                // Reordering it is what lets a folder sit anywhere — including
+                // before the last app or after every other tile.
+                var order = [];
+                for (var i = 0; i < count; ++i) {
+                    var e = get(i);
+                    if (e && e.entryKey) order.push(e.entryKey);
                 }
+                order.splice(from, 1);
+                order.splice(Math.max(0, Math.min(to, order.length)), 0, moving.entryKey);
+
+                if (typeof rootItem !== "undefined" && typeof rootItem.pinnedOrderData !== "undefined") {
+                    rootItem.pinnedOrderData = order;
+                    rootItem.savePinnedOrder();
+                }
+
+                // Reorder in place: GridView animates the move instead of
+                // destroying every delegate with a full rebuild.
+                // ListModel.move() takes (from, to, n): omitting n throws
+                // "Insufficient arguments" and aborts the visual reorder
+                // (the saved order only showed up after reopening the menu).
+                pinnedComboModel.move(from, to, 1);
+                // Delegates derive their itemIndex from the `row` role.
+                for (var r = 0; r < pinnedComboModel.count; ++r) {
+                    pinnedComboModel.setProperty(r, "row", r);
+                }
+
+                // Keep the content signature in sync with the new order so the
+                // next buildPinnedCombo() (menu reopen) does not clear and
+                // re-create every tile.
+                var keys = [];
+                for (var k = 0; k < pinnedComboModel.count; ++k) {
+                    var ke = pinnedComboModel.get(k);
+                    if (!ke) continue;
+                    if (ke.itemType === "folder") {
+                        keys.push("f:" + ke.folderIdx + ":" + (ke.name || "") + ":"
+                                  + (typeof rootItem !== "undefined"
+                                     ? rootItem.itemsDossierEpingles(ke.folderIdx).length : 0));
+                    } else {
+                        keys.push(ke.entryKey);
+                    }
+                }
+                rootItem.pinnedComboKeys = keys;
             }
         }
 
@@ -5633,6 +5795,7 @@ PlasmaCore.Dialog {
         // ajoutées après coup), ce qui fait « sauter » la liste épinglée.
         rootItem.loadFolders();
         rootItem.loadAllAppsFolders();
+        rootItem.loadPinnedOrder();
         rootModel.refreshed.connect(setModels);
         reset();
         rootModel.refresh();

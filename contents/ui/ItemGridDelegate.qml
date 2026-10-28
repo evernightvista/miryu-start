@@ -148,11 +148,32 @@ Item {
         }
     }
 
-    // Drop-onto-folder area (only active for folder items)
+    // Reorder insertion marker: a bar on the side of the tile where the
+    // dragged pinned app would be inserted (same-grid drag).
+    Rectangle {
+        readonly property bool active: (typeof itemGrid !== "undefined")
+                                       && itemGrid.dropTargetIndex === item.itemIndex
+        visible: active && !item.isLetterHeader && !item.isBlank
+        x: active ? (itemGrid.dropBefore ? 0 : item.width - width) : 0
+        y: Kirigami.Units.smallSpacing
+        width: 3
+        height: Math.max(0, item.height - y * 2)
+        radius: width / 2
+        color: Kirigami.Theme.highlightColor
+        z: 2
+    }
+
+    // Drop-onto-folder area (only active for folder items). The left/right
+    // edges are left free so the grid's drop area can reorder the folder tile
+    // there (a folder is a reorderable entry, not just a drop target).
     DropArea {
         id: folderDropArea
         anchors.fill: parent
+        anchors.leftMargin: Math.round(parent.width * 0.18)
+        anchors.rightMargin: Math.round(parent.width * 0.18)
         enabled: isFolderItem
+                 && !(typeof kicker !== "undefined" && kicker.dragSource
+                      && kicker.dragSource.isFolderItem === true)
         onDropped: {
             var src = kicker.dragSource;
             if (!src || !src.favoriteId || src.favoriteId === "") return;
@@ -270,7 +291,7 @@ Item {
         Kirigami.Icon {
             visible: {
                 var fd = rootItem.pinnedFoldersData[item.folderIdx];
-                return fd && fd.items.length === 0;
+                return fd ? (fd.items || []).length === 0 : false;
             }
             anchors.centerIn: parent
             source: "folder"
