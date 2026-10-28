@@ -14,10 +14,35 @@
 
 .pragma library
 
+// Convert an actionList value into a plain JS array. A QVariantList stored
+// inside a QML ListModel is returned to delegates as a nested QQmlListModel
+// (count + get()) instead of an array, and Array.isArray() rejects it — this
+// helper restores a real array in every case so context menus keep working.
+function asActionArray(v) {
+    if (!v) return [];
+    if (Array.isArray(v)) return v;
+    if (typeof v === "object"
+        && typeof v.count === "number"
+        && typeof v.get === "function") {
+        var fromSubModel = [];
+        try {
+            for (var i = 0; i < v.count; i++) fromSubModel.push(v.get(i));
+            return fromSubModel;
+        } catch (e) { /* fall through */ }
+    }
+    try { return Array.from(v); } catch (e2) {
+        var out = [];
+        var n = v.length || 0;
+        for (var j = 0; j < n; j++) out.push(v[j]);
+        return out;
+    }
+}
+
 function fillActionMenu(i18n, actionMenu, actionList, favoriteModel, favoriteId) {
     // Accessing actionList can be a costly operation, so we don't
     // access it until we need the menu.
 
+    actionList = asActionArray(actionList);
     var actions = createFavoriteActions(i18n, favoriteModel, favoriteId);
 
     if (actions) {

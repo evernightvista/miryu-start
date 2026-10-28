@@ -997,14 +997,102 @@ PlasmaCore.Dialog {
             return c;
         }
 
+        // Convert a QVariantList / QJSValue / plain value into a real JS array.
+        // Kicker models return QVariantList for actionListRole, but once piped
+        // through a JS ListModel the value is NOT readable back as an array:
+        // QQmlListModel turns a QVariantList role into a nested sub-model, so
+        // the delegate receives an inner QQmlListModel (count + get()) instead
+        // of an array. This helper guarantees a plain JS Array in every case:
+        //   - JS Array               -> as-is
+        //   - nested QQmlListModel   -> rebuilt row by row via get()
+        //   - QVariantList / QJSValue-> Array.from()
+        //   - index/length object    -> copy-by-index fallback
+        function toJsArray(v) {
+            if (!v) return [];
+            if (Array.isArray(v)) return v;
+            if (typeof v === "object"
+                && typeof v.count === "number"
+                && typeof v.get === "function") {
+                // Nested QQmlListModel produced by ListModel.append({actionList: [...]})
+                var fromSubModel = [];
+                try {
+                    for (var si = 0; si < v.count; si++) fromSubModel.push(v.get(si));
+                    return fromSubModel;
+                } catch (eSub) { /* fall through */ }
+            }
+            try { return Array.from(v); } catch (e) {
+                // QVariantList sometimes exposes .length + [index] even if
+                // Array.isArray says false — fall back to copy-by-index.
+                var out = [];
+                var n = v.length || 0;
+                for (var i = 0; i < n; i++) out.push(v[i]);
+                return out;
+            }
+        }
+
+        // Resolve the full desktop action list (jump list actions such as
+        // Firefox « New Window » / « New Private Window », Add to Desktop,
+        // Add to Panel (Widget), Edit Application…, Uninstall or Manage
+        // Add-Ons… (Plasma Discover) and the Recent Files submenu) for a grid
+        // entry, lazily, at menu-open time.
+        //
+        // Why lazy: the Kicker C++ models return a QVariantList of QVariantMaps
+        // for ActionListRole, and QVariantMaps can carry C++ values (the
+        // KServiceAction argument of _kicker_jumpListAction) that do NOT
+        // survive a round-trip through a QML ListModel. So we read the role
+        // straight from the source C++ model when we actually need it, and
+        // only fall back to whatever was stored in the ListModel at build
+        // time (rescued through toJsArray) when no source model is reachable.
+        //
+        // `entry` is the delegate's model row. Recognised fields:
+        //   srcModel     – C++ Kicker model owning the row (KAStats favorites,
+        //                  AppsModel via proxies, category models…)
+        //   srcRowInner  – row inside srcModel (pinned grid entries)
+        //   srcRow       – row inside srcModel (folder popup / category tiles)
+        //   sourceRow    – row inside sortedAppsModel (all-apps grid entries)
+        //   actionList   – pre-copied list (last resort only)
+        function actionListForEntry(entry) {
+            if (!entry) return [];
+            var role = rootItem.kickerActionListRole;
+
+            // 1) Direct read from the entry's own source model.
+            if (entry.srcModel) {
+                var r = -1;
+                if (entry.srcRowInner !== undefined && entry.srcRowInner >= 0) r = entry.srcRowInner;
+                else if (entry.srcRow !== undefined && entry.srcRow >= 0) r = entry.srcRow;
+                if (r >= 0) {
+                    try {
+                        var direct = toJsArray(entry.srcModel.data(entry.srcModel.index(r, 0), role));
+                        if (direct.length > 0) return direct;
+                    } catch (eDirect) {}
+                }
+            }
+
+            // 2) All-apps grid rows only carry sourceRow into sortedAppsModel.
+            if (entry.sourceRow !== undefined && entry.sourceRow >= 0 && sortedAppsModel.sourceModel) {
+                try {
+                    var viaProxy = toJsArray(sortedAppsModel.data(sortedAppsModel.index(entry.sourceRow, 0), role));
+                    if (viaProxy.length > 0) return viaProxy;
+                } catch (eProxy) {}
+            }
+
+            // 3) Last resort: whatever was stored at build time.
+            return toJsArray(entry.actionList);
+        }
+
         function lookupAppInfo(favId) {
             for (var i = 0; i < sortedAppsModel.rowCount(); i++) {
                 var midx = sortedAppsModel.index(i, 0);
                 if (sortedAppsModel.data(midx, kickerFavoriteIdRole) === favId) {
+                    var al = [];
+                    try { al = toJsArray(sortedAppsModel.data(midx, kickerActionListRole)); } catch (e) {}
                     return {
                         name:        sortedAppsModel.data(midx, kickerDisplayRole)    || displayNameForId(favId),
                         decoration:  sortedAppsModel.data(midx, kickerDecorationRole) || iconForId(favId),
-                        description: sortedAppsModel.data(midx, kickerDescriptionRole) || ""
+                        description: sortedAppsModel.data(midx, kickerDescriptionRole) || "",
+                        actionList:  al,
+                        srcModel:    sortedAppsModel,
+                        srcRow:      i
                     };
                 }
             }
@@ -1016,14 +1104,19 @@ PlasmaCore.Dialog {
                 if (globalFavorites.data(gidx, kickerFavoriteIdRole) === favId) {
                     var gName = globalFavorites.data(gidx, kickerDisplayRole);
                     var gDeco = globalFavorites.data(gidx, kickerDecorationRole);
+                    var gal = [];
+                    try { gal = toJsArray(globalFavorites.data(gidx, kickerActionListRole)); } catch (e) {}
                     return {
                         name:        gName || displayNameForId(favId),
                         decoration:  gDeco || iconForId(favId),
-                        description: globalFavorites.data(gidx, kickerDescriptionRole) || ""
+                        description: globalFavorites.data(gidx, kickerDescriptionRole) || "",
+                        actionList:  gal,
+                        srcModel:    globalFavorites,
+                        srcRow:      j
                     };
                 }
             }
-            return { name: displayNameForId(favId), decoration: iconForId(favId), description: "" };
+            return { name: displayNameForId(favId), decoration: iconForId(favId), description: "", actionList: [], srcModel: null, srcRow: -1 };
         }
 
         // Build the combined pinned model: non-foldered pinned apps and pinned
@@ -1169,7 +1262,6 @@ PlasmaCore.Dialog {
             var favoriteIdRole = Qt.UserRole + 3;
             var descRole = Qt.UserRole + 1;
             var urlRole = Qt.UserRole + 10;
-            var actionRole = Qt.UserRole + 9;
 
             // ── Non-foldered pinned apps, keyed by "a:<favoriteId>" ─────────
             var appCount = globalFavorites.rowCount();
@@ -1183,6 +1275,23 @@ PlasmaCore.Dialog {
                 var akey = pinnedAppKey(favId);
                 if (appInfo[akey] !== undefined) continue;
                 appKeys.push(akey);
+
+                // KAStatsFavoritesModel 在内部持有 AppEntry*，data() 会正确转发到
+                // AppEntry::actions()（包含 jump list、添加启动器、编辑应用、
+                // Appstream/Discover 等全部 desktop 额外操作）。
+                // 但某些 Plasma 版本可能代理层吃掉了这些 role，所以优先从
+                // globalFavorites 读，读不到再 fallback 到 sortedAppsModel。
+                // 重要：Kicker 返回的是 QVariantList，必须用 toJsArray 转成
+                // 真正的 JS 数组再塞进 ListModel，否则 delegate 里 Array.isArray
+                // 会把它当作 non-array 跳过菜单渲染。
+                var actList = toJsArray(globalFavorites.data(idx, Qt.UserRole + 9));
+                if (actList.length === 0) {
+                    // fallback：从完整应用列表模型 AppsModel 读取
+                    var ai = lookupAppInfo(favId);
+                    if (ai && ai.actionList && ai.actionList.length > 0) {
+                        actList = ai.actionList;
+                    }
+                }
                 appInfo[akey] = {
                     favoriteId: favId,
                     sourceRow: i,
@@ -1190,7 +1299,9 @@ PlasmaCore.Dialog {
                     decoration: globalFavorites.data(idx, decorationRole) || "",
                     description: globalFavorites.data(idx, descRole) || "",
                     url: String(globalFavorites.data(idx, urlRole) || ""),
-                    actionList: globalFavorites.data(idx, actionRole) || []
+                    actionList: actList,
+                    srcModel: globalFavorites,  // trigger 优先走 KAStats（它直接持有 AppEntry）
+                    srcRowInner: i
                 };
             }
 
@@ -1287,7 +1398,9 @@ PlasmaCore.Dialog {
                         sourceRow: app.sourceRow,
                         folderIdx: -1,
                         indented: false,
-                        expanded: false
+                        expanded: false,
+                        srcModel: app.srcModel,
+                        srcRowInner: app.srcRowInner
                     });
                 } else {
                     var finfo2 = folderInfo[rkey];
@@ -1327,6 +1440,7 @@ PlasmaCore.Dialog {
             var favoriteIdRole = kickerFavoriteIdRole;
             var descRole       = kickerDescriptionRole;
             var urlRole        = kickerUrlRole;
+            var actionRole     = kickerActionListRole;
             var sortMode       = Plasmoid.configuration.allAppsSortMode;
 
             // Build set of foldered app IDs
@@ -1345,6 +1459,10 @@ PlasmaCore.Dialog {
                 var favId = favoriteIdRole !== undefined ? (sortedAppsModel.data(midx, favoriteIdRole) || "") : "";
                 if (favId !== "" && folderedIds[favId] !== undefined) continue;
                 var appName = sortedAppsModel.data(midx, displayRole) || "";
+                var actList = [];
+                try {
+                    actList = toJsArray(actionRole !== undefined ? sortedAppsModel.data(midx, actionRole) : null);
+                } catch (e) { actList = []; }
                 appRows.push({
                     itemType:    "app",
                     display:     appName,
@@ -1353,7 +1471,8 @@ PlasmaCore.Dialog {
                     group:       groupForApp(midx, appName),
                     description: descRole !== undefined ? (sortedAppsModel.data(midx, descRole) || "") : "",
                     url:         urlRole  !== undefined ? String(sortedAppsModel.data(midx, urlRole)  || "") : "",
-                    disabled: false, hasActionList: false,
+                    disabled: false, hasActionList: favId !== "",
+                    actionList:  actList,
                     sourceRow: i, folderIdx: -1, indented: false, expanded: false
                 });
             }
@@ -1490,13 +1609,16 @@ PlasmaCore.Dialog {
                 if (fid !== "" && seen[fid]) continue; // déjà vu via une autre sous-catégorie
                 if (fid !== "") {
                     seen[fid] = true;
+                    var actList = [];
+                    try { actList = toJsArray(model.data(idx, kickerActionListRole)); } catch (e2b) {}
                     out.push({
                         display: String(model.data(idx, kickerDisplayRole) || ""),
                         decoration: model.data(idx, kickerDecorationRole) || "",
                         favoriteId: fid,
                         description: String(model.data(idx, kickerDescriptionRole) || ""),
                         url: String(model.data(idx, kickerUrlRole) || ""),
-                        disabled: false, hasActionList: false,
+                        disabled: false, hasActionList: true,
+                        actionList: actList,
                         srcRow: i,
                         srcModel: model
                     });
@@ -1528,8 +1650,10 @@ PlasmaCore.Dialog {
                         favoriteId:  items[i],
                         description: info.description,
                         url: "",
-                        disabled: false, hasActionList: false,
-                        sourceRow: -1, folderIdx: fi, indented: true, expanded: false
+                        disabled: false, hasActionList: true,
+                        actionList: info.actionList || [],
+                        sourceRow: -1, folderIdx: fi, indented: true, expanded: false,
+                        srcModel: info.srcModel, srcRowInner: info.srcRow
                     });
                 }
             } else {
@@ -1884,7 +2008,7 @@ PlasmaCore.Dialog {
             var r = resolveDocRow(entry.url, entry.srcRow);
             if (r < 0) return [];
             var m = docsLimitedModel.sourceModel;
-            return m.data(m.index(r, 0), kickerActionListRole) || [];
+            return toJsArray(m.data(m.index(r, 0), kickerActionListRole));
         }
 
         function rebuildDocModels() {
@@ -2159,6 +2283,27 @@ PlasmaCore.Dialog {
             id: allAppsComboModel
             // Exposes favoritesModel so delegates can Pin/Unpin via the same KActivities model
             property var favoritesModel: sortedAppsModel.favoritesModel
+
+            function trigger(row, actionId, argument) {
+                if (row < 0 || row >= count) return false;
+                var e = get(row);
+                if (!e) return false;
+                if (e.itemType === "folder") {
+                    toggleFolderExpand(row);
+                    return true;
+                }
+                // App: forward to the real source model
+                if (e.sourceRow !== undefined && e.sourceRow >= 0 && sortedAppsModel.sourceModel) {
+                    try { return sortedAppsModel.trigger(e.sourceRow, actionId, argument); }
+                    catch (ex) { return false; }
+                }
+                // Indented child of a folder: use srcModel/srcRowInner if available
+                if (e.srcModel && e.srcRowInner !== undefined && e.srcRowInner >= 0) {
+                    try { return e.srcModel.trigger(e.srcRowInner, actionId, argument); }
+                    catch (ex2) { return false; }
+                }
+                return false;
+            }
         }
 
         // Combined pinned model: non-foldered pinned apps and pinned folder
@@ -2170,18 +2315,30 @@ PlasmaCore.Dialog {
             property int dropPlaceholderIndex: -1
 
             function trigger(row, actionId, argument) {
-                if (row < 0 || row >= count) return;
+                if (row < 0 || row >= count) return false;
                 var e = get(row);
-                if (!e) return;
+                if (!e) return false;
                 if (e.itemType === "folder") {
                     // Open the pinned folder content popup
                     folderContentPopup.showAt(e.folderIdx, 0, 0, 0, 0);
-                    return;
+                    return true;
                 }
-                // App: forward to the real favorites model by source row
+                // App: launch (empty actionId) goes to favorites model.
+                // Per-app desktop actions (new window, private window,
+                // add to panel, edit application, Plasma Discover…) come
+                // from AppsModel's actionListRole — KActivities favorites
+                // model doesn't know them, so forward to AppsModel.
+                if (actionId !== "" && e.srcModel
+                        && e.srcRowInner !== undefined && e.srcRowInner >= 0) {
+                    try { return e.srcModel.trigger(e.srcRowInner, actionId, argument); }
+                    catch (ex) { /* fall through */ }
+                }
                 if (e.sourceRow !== undefined && e.sourceRow >= 0) {
-                    globalFavorites.trigger(e.sourceRow, actionId, argument);
+                    try { globalFavorites.trigger(e.sourceRow, actionId, argument); }
+                    catch (ex2) { return false; }
+                    return true;
                 }
+                return false;
             }
             function isFavorite(id) { return globalFavorites.isFavorite(id); }
             function addFavorite(id, row) {
@@ -3013,6 +3170,25 @@ PlasmaCore.Dialog {
                         height: docsContainer.recentAppsStripHeight
                         visible: Plasmoid.configuration.showRecentApps
 
+                        // Context menu for the recent-apps strip (same action set
+                        // as the app grids: jump list actions, add to desktop /
+                        // panel, edit application, Plasma Discover, favorites…).
+                        // The model here is a C++ Kicker model (RecentUsageModel),
+                        // so actionList/favoriteId roles are read natively.
+                        ActionMenu {
+                            id: recentAppsStripMenu
+                            property int targetRow: -1
+
+                            onActionClicked: {
+                                var m = recentAppsListView.model;
+                                if (!m || recentAppsStripMenu.targetRow < 0) return;
+                                var close = (Tools.triggerAction(m, recentAppsStripMenu.targetRow, actionId, actionArgument) === true);
+                                if (close) {
+                                    root.toggle();
+                                }
+                            }
+                        }
+
                         // Smart context header
                         Row {
                             id: recentAppsHeader
@@ -3100,7 +3276,27 @@ PlasmaCore.Dialog {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                                    onPressed: mouse => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            mouse.accepted = true;
+                                            var m = recentAppsListView.model;
+                                            if (!m || !("trigger" in m)) return;
+                                            var al = (("actionList" in model) && model.actionList) ? rootItem.toJsArray(model.actionList) : [];
+                                            var fm = (m.favoritesModel !== undefined) ? m.favoritesModel : null;
+                                            // nothing to show at all (no desktop actions,
+                                            // no favorites entry) -> don't open an empty menu
+                                            if (al.length === 0 && (!fm || !model.favoriteId)) return;
+                                            Tools.fillActionMenu(i18n, recentAppsStripMenu, al, fm, model.favoriteId || "");
+                                            recentAppsStripMenu.targetRow = index;
+                                            recentAppsStripMenu.visualParent = recentAppItem;
+                                            recentAppsStripMenu.open(mouse.x, mouse.y);
+                                        }
+                                    }
+
+                                    onClicked: mouse => {
+                                        if (mouse.button !== Qt.LeftButton) return;
                                         if (recentAppsListView.model && "trigger" in recentAppsListView.model) {
                                             recentAppsListView.model.trigger(index, "", null);
                                             root.toggle();
@@ -4740,6 +4936,24 @@ PlasmaCore.Dialog {
                         width: parent.width
                         spacing: Kirigami.Units.smallSpacing
 
+                        // Right-click menu for apps inside a pinned folder.
+                        // We need to resolve the per-app action list from the
+                        // full AppsModel (favorites model has no desktop actions).
+                        ActionMenu {
+                            id: folderAppActionMenu
+                            property var targetSub: null
+                            property int targetRow: -1
+
+                            onActionClicked: {
+                                if (!targetSub) return;
+                                var close = (Tools.triggerAction(targetSub, targetRow, actionId, actionArgument) === true);
+                                if (close) {
+                                    folderContentPopup.visible = false;
+                                    root.toggle();
+                                }
+                            }
+                        }
+
                         Repeater {
                             model: rootItem.itemsDossierEpingles(folderContentPopup.property_folderIndex)
 
@@ -4788,15 +5002,31 @@ PlasmaCore.Dialog {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
 
                                     property real pressX: -1
                                     property real pressY: -1
                                     property bool dragStarted: false
 
-                                    onPressed: {
+                                    onPressed: mouse => {
                                         pressX = mouse.x;
                                         pressY = mouse.y;
                                         dragStarted = false;
+
+                                        if (mouse.button === Qt.RightButton) {
+                                            mouse.accepted = true;
+                                            var info = rootItem.lookupAppInfo(favId);
+                                            var al = (info && info.actionList) ? rootItem.toJsArray(info.actionList) : [];
+                                            Tools.fillActionMenu(i18n, folderAppActionMenu, al,
+                                                (typeof globalFavorites !== "undefined" ? globalFavorites : null), favId);
+                                            folderAppActionMenu.targetSub = info ? info.srcModel : null;
+                                            folderAppActionMenu.targetRow = info ? info.srcRow : -1;
+                                            folderAppActionMenu.visualParent = parent;
+                                            var mapped = parent.mapToItem(rootItem, mouse.x, mouse.y);
+                                            folderAppActionMenu.open(mapped.x, mapped.y);
+                                            pressX = -1;
+                                            pressY = -1;
+                                        }
                                     }
 
                                     onPositionChanged: {
@@ -5047,14 +5277,16 @@ PlasmaCore.Dialog {
         }
 
         // ── Folder context menu (right-click on tile) ───────────────────────
-        Menu {
+        // 使用 PlasmaExtras.Menu 以保持与应用程序右键菜单 (ActionMenu.qml)
+        // 完全一致的 Kirigami / Plasma 6 原生样式。
+        PlasmaExtras.Menu {
             id: folderContextMenu
             property int targetIndex: -1
 
-            MenuItem {
+            PlasmaExtras.MenuItem {
                 text: i18n("Delete folder")
-                icon.name: "delete"
-                onTriggered: {
+                icon: "delete"
+                onClicked: {
                     var folders = rootItem.pinnedFoldersData.slice();
                     folders.splice(folderContextMenu.targetIndex, 1);
                     rootItem.pinnedFoldersData = folders;
@@ -5062,10 +5294,10 @@ PlasmaCore.Dialog {
                 }
             }
 
-            MenuItem {
+            PlasmaExtras.MenuItem {
                 text: i18n("Unpin all apps in folder")
-                icon.name: "bookmark-remove"
-                onTriggered: {
+                icon: "bookmark-remove"
+                onClicked: {
                     if (folderContextMenu.targetIndex < 0) return;
                     var folder = rootItem.pinnedFoldersData[folderContextMenu.targetIndex];
                     if (!folder) return;
@@ -5143,6 +5375,8 @@ PlasmaCore.Dialog {
                             width: allAppsFolderPopup.width - Kirigami.Units.smallSpacing * 2
                             height: Kirigami.Units.gridUnit * 2.5
 
+                            readonly property string favId: modelData
+
                             Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 2
@@ -5214,10 +5448,41 @@ PlasmaCore.Dialog {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: {
                                     allAppsFolderPopup.visible = false;
-                                    rootItem.launchFolderApp(modelData);
+                                    rootItem.launchFolderApp(favId);
                                 }
+                                onPressed: mouse => {
+                                    if (mouse.button === Qt.RightButton) {
+                                        mouse.accepted = true;
+                                        var info = rootItem.lookupAppInfo(favId);
+                                        var al = (info && info.actionList) ? rootItem.toJsArray(info.actionList) : [];
+                                        Tools.fillActionMenu(i18n, allAppsFolderAppMenu, al,
+                                            (typeof globalFavorites !== "undefined" ? globalFavorites : null), favId);
+                                        allAppsFolderAppMenu.targetSub = info ? info.srcModel : null;
+                                        allAppsFolderAppMenu.targetRow = info ? info.srcRow : -1;
+                                        allAppsFolderAppMenu.visualParent = parent;
+                                        var mapped = parent.mapToItem(rootItem, mouse.x, mouse.y);
+                                        allAppsFolderAppMenu.open(mapped.x, mapped.y);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Action menu for apps inside the all-apps folder popup.
+                    ActionMenu {
+                        id: allAppsFolderAppMenu
+                        property var targetSub: null
+                        property int targetRow: -1
+
+                        onActionClicked: {
+                            if (!targetSub) return;
+                            var close = (Tools.triggerAction(targetSub, targetRow, actionId, actionArgument) === true);
+                            if (close) {
+                                allAppsFolderPopup.visible = false;
+                                root.toggle();
                             }
                         }
                     }
@@ -5240,14 +5505,15 @@ PlasmaCore.Dialog {
         }
 
         // ── All Apps folder context menu ─────────────────────────────────────
-        Menu {
+        // 同样改用 PlasmaExtras.Menu，与固定区文件夹右键、应用程序右键样式统一。
+        PlasmaExtras.Menu {
             id: allAppsFolderContextMenu
             property int targetIndex: -1
 
-            MenuItem {
+            PlasmaExtras.MenuItem {
                 text: i18n("Rename folder")
-                icon.name: "edit-rename"
-                onTriggered: {
+                icon: "edit-rename"
+                onClicked: {
                     var idx = allAppsFolderContextMenu.targetIndex;
                     if (idx < 0 || idx >= rootItem.allAppsFoldersData.length) return;
                     aafRenameField.text = rootItem.allAppsFoldersData[idx].name;
@@ -5258,10 +5524,10 @@ PlasmaCore.Dialog {
                 }
             }
 
-            MenuItem {
+            PlasmaExtras.MenuItem {
                 text: i18n("Delete folder")
-                icon.name: "delete"
-                onTriggered: {
+                icon: "delete"
+                onClicked: {
                     var folders = rootItem.allAppsFoldersData.slice();
                     folders.splice(allAppsFolderContextMenu.targetIndex, 1);
                     rootItem.allAppsFoldersData = folders;

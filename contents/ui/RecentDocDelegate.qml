@@ -74,7 +74,7 @@ Item {
     function openActionMenu(x, y) {
         var gm = GridView.view.model;
         var actionList = (typeof gm.actionListForRow === "function") ? gm.actionListForRow(model.index)
-                                                                   : ((model.actionList !== undefined) ? model.actionList : []);
+                                                                   : Tools.asActionArray(model.actionList);
         Tools.fillActionMenu(i18n, actionMenu, actionList, GridView.view.model.favoritesModel, model.favoriteId);
         actionMenu.visualParent = item;
         actionMenu.open(x, y);

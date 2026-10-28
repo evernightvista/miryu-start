@@ -869,10 +869,8 @@ FocusScope {
                                        var mapped = mapToItem(gridView.currentItem, mouse.x, mouse.y);
                                        gridView.currentItem.openActionMenu(mapped.x, mapped.y);
                                    }
-                               } else {
-                                   var mapped = mapToItem(rootItem, mouse.x, mouse.y);
-                                   contextMenu.open(mapped.x, mapped.y);
                                }
+                               // else: clicked in empty space, no context menu defined here
                            } else {
                                var ci = gridView.currentItem;
                                if (ci && ("folderEditZoneHovered" in ci) && ci.folderEditZoneHovered) {

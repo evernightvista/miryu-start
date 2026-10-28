@@ -75,7 +75,6 @@ Item {
 
     property bool hasActionList: {
         if (isFolderItem) return true;
-        if (isIndented)   return false;
         return (model.favoriteId !== null) || (("hasActionList" in model) && (model.hasActionList === true));
     }
 
@@ -86,16 +85,29 @@ Item {
 
     function openActionMenu(x, y) {
         if (isFolderItem) {
+            // PlasmaExtras.Menu.open(x, y) positions relative to visualParent;
+            // without it the menu falls back to the QObject parent (rootItem)
+            // and pops up at the window's top-left corner.
             if (item.isPinnedFolder) {
+                folderContextMenu.visualParent = item;
                 folderContextMenu.targetIndex = item.folderIdx;
-                folderContextMenu.popup();
+                folderContextMenu.open(x || 0, y || 0);
             } else {
+                allAppsFolderContextMenu.visualParent = item;
                 allAppsFolderContextMenu.targetIndex = item.folderIdx;
-                allAppsFolderContextMenu.popup();
+                allAppsFolderContextMenu.open(x || 0, y || 0);
             }
             return;
         }
-        var actionList = (model.actionList !== undefined) ? model.actionList : [];
+        // Resolve the desktop action list lazily, at menu-open time (see
+        // rootItem.actionListForEntry in MenuRepresentation.qml): a QVariantList
+        // stored in a QML ListModel comes back as a nested sub-model, not an
+        // array, and may lose C++-typed action arguments — so prefer reading
+        // ActionListRole straight from the Kicker C++ source model, with the
+        // stored copy only as a last-resort fallback.
+        var actionList = (typeof rootItem !== "undefined" && rootItem.actionListForEntry)
+                         ? rootItem.actionListForEntry(item.m)
+                         : Tools.asActionArray(model.actionList);
         Tools.fillActionMenu(i18n, actionMenu, actionList, (GridView.view.favoritesModelOverride || GridView.view.model.favoritesModel), model.favoriteId);
         actionMenu.visualParent = item;
         actionMenu.open(x, y);
@@ -490,7 +502,7 @@ Item {
     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Menu && hasActionList) {
                             event.accepted = true;
-                            openActionMenu(item);
+                            openActionMenu(0, 0);
                         } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             event.accepted = true;
 

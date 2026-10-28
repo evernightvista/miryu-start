@@ -42,7 +42,6 @@ Item {
 
     property bool hasActionList: {
         if (isFolderItem) return true;
-        if (isIndented)   return false;
         return (model.favoriteId !== null) || (("hasActionList" in model) && (model.hasActionList === true));
     }
 
@@ -53,11 +52,19 @@ Item {
 
     function openActionMenu(x, y) {
         if (isFolderItem) {
+            // Position relative to the tile, not the window's top-left corner
+            // (PlasmaExtras.Menu needs an explicit visualParent).
+            allAppsFolderContextMenu.visualParent = item;
             allAppsFolderContextMenu.targetIndex = model.folderIdx;
-            allAppsFolderContextMenu.popup();
+            allAppsFolderContextMenu.open(x || 0, y || 0);
             return;
         }
-        var actionList = (model.actionList !== undefined) ? model.actionList : [];
+        // Lazy resolution of the desktop action list (jump lists, add to
+        // desktop/panel, edit application, Discover…) — see
+        // rootItem.actionListForEntry in MenuRepresentation.qml.
+        var actionList = (typeof rootItem !== "undefined" && rootItem.actionListForEntry)
+                         ? rootItem.actionListForEntry(item.m)
+                         : Tools.asActionArray(model.actionList);
         Tools.fillActionMenu(i18n, actionMenu, actionList, GridView.view.model.favoritesModel, model.favoriteId);
         actionMenu.visualParent = item;
         actionMenu.open(x, y);
@@ -305,7 +312,7 @@ Item {
     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Menu && hasActionList) {
                             event.accepted = true;
-                            openActionMenu(item);
+                            openActionMenu(0, 0);
                         } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             event.accepted = true;
 
