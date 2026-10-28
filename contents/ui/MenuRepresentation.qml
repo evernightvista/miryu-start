@@ -719,12 +719,48 @@ PlasmaCore.Dialog {
         // déclenchait des reconstructions de modèles inutiles à l'ouverture).
         property string _foldersRaw: ""
 
+        // A folder that has never been explicitly renamed stores an empty name.
+        // Folders created by older builds stored a *localized* default name
+        // (e.g. "文件夹" in zh_CN, "Ordner" in de…) baked in at creation time,
+        // which never updates when the system language changes. Treat both empty
+        // names and the known translations of "Folder" as "unrenamed" so the
+        // display can fall back to a live i18n("Folder") that follows the locale.
+        function isDefaultFolderName(n) {
+            if (n === undefined || n === null) return true;
+            n = String(n).trim();
+            if (n === "") return true;
+            if (n === i18n("Folder")) return true;
+            var known = [
+                "文件夹", "資料夾", "Ordner", "Map", "Carpeta", "Dossier",
+                "Cartella", "フォルダー", "폴더", "Folder", "Pasta",
+                "Папка", "Klasör"
+            ];
+            return known.indexOf(n) >= 0;
+        }
+
+        // Localized display name for a folder tile: an empty / default name
+        // falls back to i18n("Folder"), which tracks the system language.
+        function folderDisplayName(name) {
+            return isDefaultFolderName(name) ? i18n("Folder") : name;
+        }
+
+        function _normalizeFolderNames(arr) {
+            if (!arr || !arr.length) return arr;
+            for (var i = 0; i < arr.length; ++i) {
+                if (arr[i] && isDefaultFolderName(arr[i].name)) {
+                    arr[i] = { name: "", items: arr[i].items || [], createdAt: arr[i].createdAt || 0 };
+                }
+            }
+            return arr;
+        }
+
         function loadFolders() {
             var raw = Plasmoid.configuration.pinnedFolders || "";
             if (raw === _foldersRaw) return;
             _foldersRaw = raw;
             if (raw.length === 0) { pinnedFoldersData = []; return; }
-            try { pinnedFoldersData = JSON.parse(raw); } catch(e) { pinnedFoldersData = []; }
+            try { pinnedFoldersData = _normalizeFolderNames(JSON.parse(raw)); }
+            catch(e) { pinnedFoldersData = []; }
         }
 
         function saveFolders() {
@@ -776,12 +812,14 @@ PlasmaCore.Dialog {
             }
         }
 
-        // Create a pinned folder from two apps (drag-app-onto-app gesture)
+        // Create a pinned folder from two apps (drag-app-onto-app gesture).
+        // Store an empty name (unrenamed sentinel) instead of a baked-in
+        // localized string, so the tile label follows the system language.
         function createPinnedFolderFromApps(appId1, appId2) {
             if (!appId1 || !appId2 || appId1 === appId2) return;
             var folders = pinnedFoldersData.slice();
             folders.push({
-                name: i18n("Folder"),
+                name: "",
                 items: [appId1, appId2],
                 createdAt: Date.now()
             });
@@ -798,7 +836,8 @@ PlasmaCore.Dialog {
             if (raw === _allAppsFoldersRaw) return;
             _allAppsFoldersRaw = raw;
             if (raw.length === 0) { allAppsFoldersData = []; return; }
-            try { allAppsFoldersData = JSON.parse(raw); } catch(e) { allAppsFoldersData = []; }
+            try { allAppsFoldersData = _normalizeFolderNames(JSON.parse(raw)); }
+            catch(e) { allAppsFoldersData = []; }
         }
 
         function saveAllAppsFolders() {
@@ -4859,7 +4898,20 @@ PlasmaCore.Dialog {
                 // Purge des lanceurs désépinglés avant l'affichage : si le
                 // dossier est vide de tout favori il est dissous et on n'ouvre rien.
                 if (!rootItem.purgerDossierEpingle(idx)) return;
+                // Reset the editing state BEFORE switching the folder index:
+                // dropping focus fires onEditingFinished → commit(), which must
+                // NOT flush the previous popup's edited text (e.g. "De") into
+                // the newly opened folder now that property_folderIndex points
+                // at it. suppressCommit guards that window.
+                folderTitleField.suppressCommit = true;
+                folderTitleField.titleEditMode = false;
+                folderTitleField.focus = false;
+                folderTitleField.cursorPosition = 0;
                 folderContentPopup.property_folderIndex = idx;
+                folderTitleField.text = (idx >= 0 && idx < rootItem.pinnedFoldersData.length)
+                                        ? rootItem.pinnedFoldersData[idx].name : "";
+                // Release the guard once pending focus signals have settled.
+                Qt.callLater(function() { folderTitleField.suppressCommit = false; });
                 visible = true;
             }
 
@@ -4882,27 +4934,58 @@ PlasmaCore.Dialog {
                     anchors.margins: Kirigami.Units.largeSpacing
                     spacing: Kirigami.Units.largeSpacing
 
-                    // Folder name — inline editable (click to rename directly)
+                    // Folder name — click to rename (read-only "title" until
+                    // clicked so the caret / input hint never shows by default)
                     PC3.TextField {
                         id: folderTitleField
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2,
                                         implicitWidth + Kirigami.Units.largeSpacing * 2)
+                        // Show the stored name (empty for unrenamed folders);
+                        // the localized default is provided as a placeholder so
+                        // it never gets written back as an explicit rename.
                         text: folderContentPopup.property_folderIndex >= 0 && folderContentPopup.property_folderIndex < rootItem.pinnedFoldersData.length
                               ? rootItem.pinnedFoldersData[folderContentPopup.property_folderIndex].name
                               : ""
+                        placeholderText: i18n("Folder")
+                        // Render the placeholder (shown for unrenamed folders)
+                        // in the normal text color: Qt's default placeholder
+                        // color is translucent gray, which made the title look
+                        // un-highlighted compared to a renamed folder.
+                        placeholderTextColor: Kirigami.Theme.textColor
                         font.bold: true
                         color: Kirigami.Theme.textColor
                         font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.05
                         horizontalAlignment: Text.AlignHCenter
                         selectByMouse: true
+                        // Title mode until the user clicks: no caret, no focus,
+                        // no editing hints.
+                        property bool titleEditMode: false
+                        // Guards against commit() flushing a previous popup's
+                        // edited text into the newly opened folder while the
+                        // editing state is being reset in showAt().
+                        property bool suppressCommit: false
+                        readOnly: !titleEditMode
+                        activeFocusOnTab: titleEditMode
+                        cursorVisible: titleEditMode && activeFocus
                         cursorDelegate: Rectangle { color: Kirigami.Theme.textColor; width: 1 }
                         background: Rectangle {
                             color: "transparent"
                             border.width: 0
                         }
 
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !folderTitleField.titleEditMode
+                            onClicked: {
+                                folderTitleField.titleEditMode = true;
+                                folderTitleField.forceActiveFocus();
+                                folderTitleField.cursorPosition = folderTitleField.text.length;
+                            }
+                        }
+
                         function commit() {
+                            if (suppressCommit) return;
                             var fi = folderContentPopup.property_folderIndex;
                             if (fi < 0 || fi >= rootItem.pinnedFoldersData.length) return;
                             var newName = text.trim();
@@ -4929,6 +5012,9 @@ PlasmaCore.Dialog {
                             focus = false;
                         }
                         onEditingFinished: commit()
+                        onActiveFocusChanged: {
+                            if (!activeFocus) titleEditMode = false;
+                        }
                     }
 
                     // App grid
@@ -5360,7 +5446,7 @@ PlasmaCore.Dialog {
                         leftPadding: Kirigami.Units.smallSpacing
                         text: allAppsFolderPopup.folderIndex >= 0
                               && allAppsFolderPopup.folderIndex < rootItem.allAppsFoldersData.length
-                              ? rootItem.allAppsFoldersData[allAppsFolderPopup.folderIndex].name : ""
+                              ? rootItem.folderDisplayName(rootItem.allAppsFoldersData[allAppsFolderPopup.folderIndex].name) : ""
                         font.bold: true
                         color: Kirigami.Theme.textColor
                         font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.9
@@ -5799,7 +5885,7 @@ PlasmaCore.Dialog {
                         width: parent.width
                         text: folderAppPickerPopup.folderIndex >= 0
                               && folderAppPickerPopup.folderIndex < rootItem.allAppsFoldersData.length
-                              ? i18n("Add apps — %1", rootItem.allAppsFoldersData[folderAppPickerPopup.folderIndex].name)
+                              ? i18n("Add apps — %1", rootItem.folderDisplayName(rootItem.allAppsFoldersData[folderAppPickerPopup.folderIndex].name))
                               : i18n("Add apps to folder")
                         color: Kirigami.Theme.textColor
                         font.bold: true

@@ -380,7 +380,9 @@ Item {
         font.pointSize: isIndented
         ? Kirigami.Theme.defaultFont.pointSize * 0.9
         : Kirigami.Theme.defaultFont.pointSize
-        text: ("name" in model ? model.name : model.display)
+        // Folder tiles use the localized default name when unrenamed (empty
+        // name) so the label follows the system language; apps keep model.display.
+        text: isFolderItem ? rootItem.folderDisplayName(model.name) : model.display
         textFormat: Text.PlainText
     }
 

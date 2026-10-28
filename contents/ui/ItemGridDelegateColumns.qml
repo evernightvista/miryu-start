@@ -180,7 +180,7 @@ Item {
             font.pointSize: isIndented
                             ? Kirigami.Theme.defaultFont.pointSize * 0.9
                             : Kirigami.Theme.defaultFont.pointSize
-            text: ("name" in model ? model.name : model.display)
+            text: isFolderItem ? rootItem.folderDisplayName(model.name) : model.display
             textFormat: Text.PlainText
         }
 
